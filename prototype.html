@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ascent — Prototype</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #05060a; overflow: hidden; height: 100%; }
+  #game { display: block; width: 100vw; height: 100vh; }
+
+  #hud {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; font-family: 'Segoe UI', system-ui, sans-serif; color: #e8ecff;
+  }
+
+  #promptBox {
+    position: absolute; bottom: 5%; left: 50%; transform: translateX(-50%);
+    width: min(700px, 82vw); max-width: 82vw; box-sizing: border-box;
+    background: rgba(10, 12, 24, 0.72);
+    border: 1px solid rgba(120, 140, 255, 0.25); border-radius: 12px;
+    padding: 20px 26px; font-size: 24px; line-height: 1.55; letter-spacing: 0.3px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    transition: border-color 0.08s, background 0.08s;
+    word-wrap: break-word; overflow-wrap: break-word; text-align: center;
+  }
+  #promptBox.flash { border-color: #ff4d5e; background: rgba(60, 10, 16, 0.75); }
+  #promptBox.stalled {
+    border-color: #ff4d5e; background: rgba(40, 6, 10, 0.8);
+    animation: stalledGlitch 0.12s steps(2) infinite;
+  }
+  @keyframes stalledGlitch {
+    0%   { transform: translateX(0); opacity: 1; }
+    25%  { transform: translateX(-3px); opacity: 0.75; }
+    50%  { transform: translateX(2px); opacity: 0.95; }
+    75%  { transform: translateX(-2px); opacity: 0.6; }
+    100% { transform: translateX(0); opacity: 0.9; }
+  }
+  .stalledMsg { text-align: center; color: #ff5d6c; font-weight: 700; letter-spacing: 1px; }
+  .stalledMsg .countdown { display: block; margin-top: 6px; font-size: 30px; color: #fff; letter-spacing: 2px; }
+
+  .ch { position: relative; }
+  .ch.correct { color: #6dffb0; }
+  .ch.current { color: #fff; text-decoration: underline; text-decoration-color: #7a8bff; }
+  .ch.pending { color: #6a7190; }
+
+  #statsBar {
+    position: absolute; top: 3%; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 28px; font-size: 14px; color: #9aa3c7; letter-spacing: 0.5px;
+  }
+  #statsBar b { color: #e8ecff; font-size: 16px; }
+
+  #endScreen {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 10px; background: rgba(3,4,10,0.85); pointer-events: all;
+  }
+  #endScreen.show { display: flex; }
+  #endScreen h1 { font-size: 40px; margin: 0; }
+  #endScreen .row { color: #b7c0ea; font-size: 16px; }
+  #endScreen button {
+    margin-top: 18px; pointer-events: all; cursor: pointer;
+    background: #4c5bff; border: none; color: white; font-size: 15px;
+    padding: 10px 22px; border-radius: 8px;
+  }
+  #endScreen button:hover { background: #6272ff; }
+
+  #devPanel {
+    position: absolute; right: 12px; top: 12px; width: 220px;
+    background: rgba(10,12,24,0.75); border: 1px solid rgba(120,140,255,0.2);
+    border-radius: 10px; padding: 12px 14px; font-size: 12px; pointer-events: all;
+  }
+  #devPanel h3 { margin: 0 0 8px; font-size: 12px; color: #8b93c4; font-weight: 600; letter-spacing: 0.5px; }
+  #devPanel label { display: block; margin-top: 8px; color: #9aa3c7; }
+  #devPanel input[type=range] { width: 100%; }
+  #devPanel .val { color: #e8ecff; float: right; }
+  #devPanel button { margin-top: 10px; width: 100%; pointer-events: all; cursor: pointer;
+    background: #2a3050; border: 1px solid #4a5384; color: #e8ecff; padding: 6px; border-radius: 6px; }
+
+  #hint {
+    position: absolute; bottom: 15%; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: #6a7190;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div id="statsBar">
+    <div>WPM <b id="statWpm">0</b></div>
+    <div>ACCURACY <b id="statAcc">100%</b></div>
+    <div>ALTITUDE <b id="statAlt">0%</b></div>
+  </div>
+  <div id="promptBox"></div>
+  <div id="hint">Type endlessly. Build speed, stay consistent, don't stop until you reach the moon.</div>
+
+  <div id="devPanel">
+    <h3>DEV TUNING</h3>
+    <label>Accel / char <span class="val" id="vAccel">0.09</span>
+      <input type="range" id="sAccel" min="0.02" max="0.30" step="0.01" value="0.09">
+    </label>
+    <label>Decay half-life (s) <span class="val" id="vHalf">1.4</span>
+      <input type="range" id="sHalf" min="0.4" max="4.0" step="0.1" value="1.4">
+    </label>
+    <label>Hull segments <span class="val" id="vHull">5</span>
+      <input type="range" id="sHull" min="1" max="10" step="1" value="5">
+    </label>
+    <label>Distance to moon <span class="val" id="vMoon">14</span>
+      <input type="range" id="sMoon" min="4" max="60" step="1" value="14">
+    </label>
+    <label>Max speed <span class="val" id="vMaxSpeed">1.20</span>
+      <input type="range" id="sMaxSpeed" min="0.2" max="3.0" step="0.05" value="1.2">
+    </label>
+    <button id="btnRestart">Restart</button>
+  </div>
+
+  <div id="endScreen">
+    <h1 id="endTitle">Reached the moon</h1>
+    <div class="row" id="endStats"></div>
+    <button id="btnPlayAgain">Play again</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Config (dev-tunable) ----------
+  const cfg = {
+    accel: 0.09,
+    halfLife: 1.4,
+    maxHull: 5,
+    moonDistance: 14, // total speed*time needed to reach the moon — the "race length"
+    maxSpeed: 1.2,
+  };
+
+  const PLAYER_NAME = "Player1";
+
+  const EPS = 0.001;
+  const STALL_DURATION = 5; // seconds the ship is disabled after hull hits zero
+
+  // Short test content so runs finish quickly during dev iteration.
+  // Swap back to long paragraphs (200-260 chars) once mechanics are locked.
+  const PARAGRAPHS = [
+    "The fog rolled in fast. Cats ran for cover. Nobody saw it coming.",
+    "Coffee went cold again. The build failed twice. Nothing made sense.",
+    "Fish crates lined the docks. Vendors shouted prices. Dawn broke slow."
+  ];
+
+  // Split a paragraph into sentences, keeping trailing punctuation, trimming lead space.
+  function splitSentences(text) {
+    const matches = text.match(/[^.!?]+[.!?]+(\s+|$)/g) || [text];
+    return matches.map(s => s.trim()).filter(Boolean);
+  }
+
+  // Typing is endless: flatten every paragraph into one pool of sentences and
+  // keep drawing from it (never repeating the immediately-previous one) until
+  // the player reaches the moon. There is no "end of text."
+  const SENTENCE_POOL = PARAGRAPHS.flatMap(splitSentences);
+  function pickNextSentence(exclude) {
+    if (SENTENCE_POOL.length === 1) return SENTENCE_POOL[0];
+    let choice;
+    do {
+      choice = SENTENCE_POOL[Math.floor(Math.random() * SENTENCE_POOL.length)];
+    } while (choice === exclude);
+    return choice;
+  }
+
+  // ---------- State ----------
+  let currentSentence = "";
+  let typedIndex = 0; // index within the CURRENT sentence
+  let mistakes = 0;
+  let correctChars = 0;
+  let speed = 0;
+  let progress = 0; // 0..1
+  let hull = cfg.maxHull;
+  let startTime = null; // set on first correct keystroke
+  let running = true;
+  let stalled = false;
+  let stallTimer = 0;
+  let lastTs = performance.now();
+  let shakeT = 0;
+  let flashT = 0;
+  let camSpeed = 0; // eased toward `speed` for a smoother camera/world-scroll feel
+  let barDrop = 0;  // eased offset pushing the ship's status bars clear of the flame
+  let launched = false;
+  let launchT = 0;  // counts down through the blastoff flare
+  const LAUNCH_DURATION = 1.1;
+
+  const particles = [];
+
+  function newRun() {
+    currentSentence = pickNextSentence(null);
+    typedIndex = 0;
+    mistakes = 0;
+    correctChars = 0;
+    speed = 0;
+    progress = 0;
+    hull = cfg.maxHull;
+    startTime = null;
+    running = true;
+    stalled = false;
+    stallTimer = 0;
+    camSpeed = 0;
+    barDrop = 0;
+    launched = false;
+    launchT = 0;
+    particles.length = 0;
+    initClouds();
+    initSkyline();
+    promptBox.classList.remove('stalled');
+    renderPrompt();
+    document.getElementById('endScreen').classList.remove('show');
+  }
+
+  // ---------- DOM refs ----------
+  const promptBox = document.getElementById('promptBox');
+  const statWpm = document.getElementById('statWpm');
+  const statAcc = document.getElementById('statAcc');
+  const statAlt = document.getElementById('statAlt');
+  const endScreen = document.getElementById('endScreen');
+  const endTitle = document.getElementById('endTitle');
+  const endStats = document.getElementById('endStats');
+
+  function renderPrompt() {
+    if (stalled) {
+      promptBox.innerHTML = `<div class="stalledMsg">HULL BREACH — REBOOTING<span class="countdown">${Math.max(0, stallTimer).toFixed(1)}s</span></div>`;
+      return;
+    }
+    const sentence = currentSentence || "";
+    let html = "";
+    for (let i = 0; i < sentence.length; i++) {
+      const c = sentence[i];
+      const disp = c === ' ' ? '&nbsp;' : c;
+      let cls = 'pending';
+      if (i < typedIndex) cls = 'correct';
+      else if (i === typedIndex) cls = 'current';
+      html += `<span class="ch ${cls}">${disp}</span>`;
+    }
+    promptBox.innerHTML = html;
+  }
+
+  function spawnSparks(x, y) {
+    for (let i = 0; i < 36; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 40 + Math.random() * 180;
+      particles.push({
+        x, y,
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 0.4 + Math.random() * 0.5, maxLife: 0.9,
+        color: Math.random() < 0.5 ? '#ffe08a' : '#ff9d4d',
+        size: 1.5 + Math.random() * 3,
+      });
+    }
+  }
+
+  // Blastoff: a billowing exhaust cloud that rolls outward across the pad, plus
+  // a shower of ignition sparks underneath the ship.
+  function spawnLaunchSmoke(x, y) {
+    for (let i = 0; i < 54; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 70 + Math.random() * 200;
+      const shade = 118 + Math.floor(Math.random() * 74);
+      particles.push({
+        x: x + (Math.random() - 0.5) * 36,
+        y: y + (Math.random() - 0.5) * 14,
+        vx: Math.cos(a) * s,
+        vy: Math.abs(Math.sin(a)) * s * 0.32 + 18,
+        life: 0.9 + Math.random() * 1.0, maxLife: 1.9,
+        color: `rgb(${shade},${shade - 6},${shade + 8})`,
+        size: 9 + Math.random() * 15,
+        grow: 28,
+      });
+    }
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 90 + Math.random() * 220;
+      particles.push({
+        x, y,
+        vx: Math.cos(a) * s, vy: Math.abs(Math.sin(a)) * s * 0.6,
+        life: 0.3 + Math.random() * 0.4, maxLife: 0.7,
+        color: Math.random() < 0.5 ? '#ffd98a' : '#ff9d4d',
+        size: 2 + Math.random() * 3,
+      });
+    }
+  }
+
+  function enterStall() {
+    stalled = true;
+    stallTimer = STALL_DURATION;
+    promptBox.classList.add('stalled');
+    spawnSparks(canvas.width / 2, rocketScreenY());
+    renderPrompt();
+  }
+
+  function recoverFromStall() {
+    stalled = false;
+    hull = cfg.maxHull;
+    speed = 0;
+    promptBox.classList.remove('stalled');
+    renderPrompt();
+  }
+
+  function endRun(won) {
+    running = false;
+    const elapsedMin = startTime ? (performance.now() - startTime) / 60000 : 0;
+    const wpm = elapsedMin > 0 ? Math.round((correctChars / 5) / elapsedMin) : 0;
+    const acc = (correctChars + mistakes) > 0 ? Math.round((correctChars / (correctChars + mistakes)) * 100) : 100;
+    endTitle.textContent = won ? "Reached the moon" : "Rocket destroyed";
+    endStats.innerHTML = `Altitude: ${Math.round(progress * 100)}% &nbsp;•&nbsp; Hull remaining: ${hull}/${cfg.maxHull} &nbsp;•&nbsp; WPM: ${wpm} &nbsp;•&nbsp; Accuracy: ${acc}%`;
+    endScreen.classList.add('show');
+  }
+
+  // ---------- Input ----------
+  window.addEventListener('keydown', (e) => {
+    if (!running || stalled) return;
+    if (e.key.length !== 1) return; // ignore modifiers, backspace unhandled by design
+    e.preventDefault();
+
+    const sentence = currentSentence;
+    const expected = sentence[typedIndex];
+    if (e.key === expected) {
+      if (startTime === null) {
+        startTime = performance.now();
+        launched = true;
+        launchT = LAUNCH_DURATION;
+        shakeT = 0.55;
+        spawnLaunchSmoke(canvas.width / 2, rocketScreenY() + 34);
+      }
+      typedIndex++;
+      correctChars++;
+      speed = Math.min(cfg.maxSpeed, speed + cfg.accel);
+      if (typedIndex >= sentence.length) {
+        currentSentence = pickNextSentence(sentence);
+        typedIndex = 0;
+      }
+    } else {
+      mistakes++;
+      speed = 0;
+      hull -= 1;
+      flashT = 0.18;
+      shakeT = 0.25;
+      if (hull <= 0) {
+        enterStall();
+        return;
+      }
+    }
+    renderPrompt();
+  }, { passive: false });
+
+  // ---------- Canvas / rendering world ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  let stars = [];
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 220; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height * 3 - canvas.height,
+        r: Math.random() * 1.6 + 0.3,
+        layer: Math.random() < 0.7 ? 1 : 2,
+      });
+    }
+  }
+  initStars();
+  window.addEventListener('resize', initStars);
+
+  // ---------- Atmosphere ----------
+  // Altitude is sold with real drawn layers — a receding ground silhouette, parallax
+  // cloud objects that physically pass the ship, and a star fade-in. The sky itself
+  // is ONE gradient whose stop colors are lerped between keyframes, never two
+  // gradients cross-fading over each other (that reads as a washed-out smear).
+  const SKY_KEYS = [
+    { at: 0.00, top: [ 26,  34,  72], bot: [206, 116,  76] }, // 6pm dusk, warm horizon
+    { at: 0.16, top: [ 21,  28,  64], bot: [104,  80, 120] }, // last light fading
+    { at: 0.40, top: [ 14,  20,  50], bot: [ 36,  44,  94] }, // upper atmosphere
+    { at: 0.70, top: [  7,  10,  28], bot: [ 16,  20,  50] }, // edge of space
+    { at: 1.00, top: [  3,   4,  10], bot: [ 10,  13,  28] }, // space
+  ];
+
+  function smoothstep(a, b, x) {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  }
+
+  function skyColors(p) {
+    let i = 0;
+    while (i < SKY_KEYS.length - 2 && p > SKY_KEYS[i + 1].at) i++;
+    const a = SKY_KEYS[i], b = SKY_KEYS[i + 1];
+    const t = Math.max(0, Math.min(1, (p - a.at) / (b.at - a.at)));
+    const mix = (u, v) => Math.round(u + (v - u) * t);
+    return {
+      top: `rgb(${mix(a.top[0], b.top[0])},${mix(a.top[1], b.top[1])},${mix(a.top[2], b.top[2])})`,
+      bot: `rgb(${mix(a.bot[0], b.bot[0])},${mix(a.bot[1], b.bot[1])},${mix(a.bot[2], b.bot[2])})`,
+    };
+  }
+
+  // Ground sits just below the launch position and slides away in the first few
+  // percent of the climb, then never returns.
+  function drawGround(y) {
+    if (y > canvas.height + 8) return;
+    const w = canvas.width;
+
+    // warm dusk band hugging the horizon
+    const glowH = 190;
+    const g = ctx.createLinearGradient(0, y - glowH, 0, y);
+    g.addColorStop(0, 'rgba(226, 130, 82, 0)');
+    g.addColorStop(1, 'rgba(255, 152, 92, 0.5)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y - glowH, w, glowH);
+
+    // distant skyline, lit from behind by the setting sun
+    ctx.fillStyle = '#12131f';
+    for (const b of skyline) {
+      const bh = b.h * 70;
+      ctx.fillRect(b.x * w, y - bh, b.w * 60, bh + 4);
+    }
+
+    // hills / horizon silhouette down to the bottom of the screen
+    ctx.fillStyle = '#080a12';
+    ctx.beginPath();
+    ctx.moveTo(0, y + 6);
+    ctx.quadraticCurveTo(w * 0.20, y - 26, w * 0.38, y - 2);
+    ctx.quadraticCurveTo(w * 0.56, y + 20, w * 0.74, y - 16);
+    ctx.quadraticCurveTo(w * 0.90, y - 34, w, y - 4);
+    ctx.lineTo(w, canvas.height + 60);
+    ctx.lineTo(0, canvas.height + 60);
+    ctx.closePath();
+    ctx.fill();
+
+    // launch pad + gantry the ship rests on
+    const cx = w / 2;
+    ctx.fillStyle = '#191c2e';
+    ctx.fillRect(cx - 72, y - 4, 144, 14);
+    ctx.fillStyle = '#12141f';
+    ctx.fillRect(cx - 84, y - 78, 9, 78);
+    ctx.fillRect(cx + 75, y - 78, 9, 78);
+    for (let i = 1; i <= 3; i++) {
+      ctx.fillRect(cx - 84, y - 78 + i * 19, 168, 3);
+    }
+  }
+
+  let skyline = [];
+  function initSkyline() {
+    skyline = [];
+    for (let i = 0; i < 26; i++) {
+      skyline.push({ x: Math.random(), w: 0.10 + Math.random() * 0.22, h: 0.25 + Math.random() * 0.9 });
+    }
+  }
+  initSkyline();
+
+  // Clouds live at fixed altitudes and stream past the ship as `progress` rises.
+  // `depth` is parallax: nearer clouds sweep by faster. A quarter of them are
+  // foreground and get drawn in front of the rocket for real depth separation.
+  const CLOUD_SPREAD = 3200;
+  let clouds = [];
+  function initClouds() {
+    clouds = [];
+    for (let i = 0; i < 22; i++) {
+      const puffs = [];
+      const n = 4 + Math.floor(Math.random() * 4);
+      for (let j = 0; j < n; j++) {
+        puffs.push({
+          dx: (j - (n - 1) / 2) * (24 + Math.random() * 14),
+          dy: (Math.random() - 0.5) * 14,
+          r: 20 + Math.random() * 20,
+        });
+      }
+      clouds.push({
+        alt: 0.05 + Math.random() * 0.45,
+        x: Math.random(),
+        scale: 0.7 + Math.random() * 0.9,
+        depth: 0.5 + Math.random() * 0.7,
+        fg: Math.random() < 0.25,
+        puffs,
+      });
+    }
+  }
+
+  function drawCloud(c, y, alpha) {
+    const s = c.scale * (c.fg ? 1.7 : 1);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(c.x * canvas.width, y);
+    ctx.scale(s, s);
+
+    // body — foreground clouds are darker silhouettes (less air between us)
+    ctx.fillStyle = c.fg ? 'rgba(26, 28, 48, 0.94)' : 'rgba(66, 70, 104, 0.82)';
+    for (const p of c.puffs) {
+      ctx.beginPath();
+      ctx.arc(p.dx, p.dy, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // warm sunset rim along the top, strongest at low altitude
+    const rim = (1 - smoothstep(0.04, 0.30, progress)) * 0.55;
+    if (rim > 0.01) {
+      ctx.globalAlpha = alpha * rim;
+      ctx.fillStyle = 'rgba(255, 164, 104, 1)';
+      for (const p of c.puffs) {
+        ctx.beginPath();
+        ctx.arc(p.dx, p.dy - p.r * 0.34, p.r * 0.72, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  let worldScroll = 0; // cosmetic starfield drift, driven by camSpeed (feel, not position)
+
+  // The moon is a fixed landmark pinned near the top of the screen — it never moves
+  // or scrolls, it just reveals late. The rocket is what moves: it starts near the bottom and its
+  // own screen position climbs toward the moon as `progress` increases, so "getting
+  // closer" is the ship visibly closing the gap, not the world scrolling underneath
+  // a static ship (like Mario: the camera doesn't pan until it needs to — here it
+  // never needs to, since the whole trip fits in one static frame).
+  const MOON_SCREEN_Y = 90;
+  const MOON_REVEAL_AT = 0.75; // moon stays hidden until the final stretch of the run
+  const ROCKET_START_FRAC = 0.70;
+  const rocketScreenY = () => {
+    const startY = canvas.height * ROCKET_START_FRAC;
+    return startY + (MOON_SCREEN_Y - startY) * progress;
+  };
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function drawRocket(x, y, speedNorm, shakeOffsetX) {
+    ctx.save();
+    ctx.translate(x + shakeOffsetX, y);
+
+    // flame — dead cold on the pad, then a big flare through the blastoff that
+    // settles into the normal speed-driven plume
+    const ignition = launchT > 0 ? (launchT / LAUNCH_DURATION) : 0;
+    const thrust = launched ? Math.min(1.5, speedNorm + ignition * 0.9) : 0;
+    const flameLen = thrust > 0 ? 20 + thrust * 160 : 0;
+    if (flameLen > 0) {
+      const flameW = 10 + thrust * 20;
+      const flameAlpha = Math.min(1, 0.25 + thrust * 0.75);
+      const grad = ctx.createLinearGradient(0, 30, 0, 30 + flameLen);
+      grad.addColorStop(0, `rgba(255, 220, 120, ${flameAlpha})`);
+      grad.addColorStop(0.5, `rgba(255, 140, 60, ${flameAlpha * 0.8})`);
+      grad.addColorStop(1, `rgba(255, 80, 40, 0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(-flameW / 2, 30);
+      ctx.quadraticCurveTo(0, 30 + flameLen * 1.1, flameW / 2, 30);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // body
+    ctx.fillStyle = '#d8dcf0';
+    ctx.beginPath();
+    ctx.moveTo(0, -46);
+    ctx.quadraticCurveTo(20, -10, 16, 30);
+    ctx.lineTo(-16, 30);
+    ctx.quadraticCurveTo(-20, -10, 0, -46);
+    ctx.closePath();
+    ctx.fill();
+
+    // nose accent
+    ctx.fillStyle = '#ff5d6c';
+    ctx.beginPath();
+    ctx.moveTo(0, -46);
+    ctx.quadraticCurveTo(10, -28, 8, -14);
+    ctx.lineTo(-8, -14);
+    ctx.quadraticCurveTo(-10, -28, 0, -46);
+    ctx.closePath();
+    ctx.fill();
+
+    // window
+    ctx.fillStyle = '#4c5bff';
+    ctx.beginPath();
+    ctx.arc(0, -6, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#e8ecff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // fins
+    ctx.fillStyle = '#ff5d6c';
+    ctx.beginPath();
+    ctx.moveTo(-16, 12); ctx.lineTo(-32, 34); ctx.lineTo(-16, 30); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(16, 12); ctx.lineTo(32, 34); ctx.lineTo(16, 30); ctx.closePath(); ctx.fill();
+
+    // hull damage smoke (visible when hull is low)
+    const dmgRatio = 1 - hull / cfg.maxHull;
+    if (dmgRatio > 0.2) {
+      ctx.globalAlpha = Math.min(0.5, dmgRatio);
+      ctx.fillStyle = '#444';
+      ctx.beginPath();
+      ctx.arc(6, -4 + Math.sin(performance.now() / 200) * 3, 5 * dmgRatio, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // name tag, above the nose
+    ctx.font = '600 13px Segoe UI, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const nameW = ctx.measureText(PLAYER_NAME).width;
+    const pillW = nameW + 20, pillH = 20, pillY = -66;
+    roundRect(ctx, -pillW / 2, pillY - pillH / 2, pillW, pillH, 6);
+    ctx.fillStyle = 'rgba(10, 12, 24, 0.7)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120, 140, 255, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#e8ecff';
+    ctx.fillText(PLAYER_NAME, 0, pillY + 1);
+
+    // hull segments, below the fins. The whole status stack slides down to clear
+    // the exhaust plume as it grows, so a lit thruster never covers the readouts.
+    // A quadratic bezier peaks at 0.55 of its control offset — that's the flame tip.
+    const flameTip = 30 + flameLen * 0.55;
+    const targetDrop = Math.max(0, flameTip + 12 - 46);
+    barDrop += (targetDrop - barDrop) * 0.12; // eased so it glides instead of snapping
+
+    const segW = 14, segH = 7, segGap = 4;
+    const hullW = cfg.maxHull * segW + (cfg.maxHull - 1) * segGap;
+    const hullY = 46 + barDrop;
+    for (let i = 0; i < cfg.maxHull; i++) {
+      const segX = -hullW / 2 + i * (segW + segGap);
+      if (i < hull) {
+        ctx.shadowColor = '#ff5d6c';
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = '#ff5d6c';
+      } else {
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#2a3050';
+      }
+      ctx.fillRect(segX, hullY, segW, segH);
+    }
+    ctx.shadowBlur = 0;
+
+    // speed bar, below the hull bar — fills left to right as thrust builds
+    const barY = hullY + segH + 7;
+    const barH = 6;
+    const barW = hullW;
+    const spdRatio = Math.max(0, Math.min(1, speed / cfg.maxSpeed));
+    const atMax = spdRatio >= 0.995;
+
+    roundRect(ctx, -barW / 2, barY, barW, barH, barH / 2);
+    ctx.fillStyle = 'rgba(18, 22, 42, 0.85)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120, 140, 255, 0.28)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    if (spdRatio > 0.005) {
+      // gradient spans the whole track, so a given speed always reads the same
+      // hue (cool -> green -> hot) instead of the colors stretching with the fill
+      const g = ctx.createLinearGradient(-barW / 2, 0, barW / 2, 0);
+      g.addColorStop(0, '#4c8bff');
+      g.addColorStop(0.55, '#6dffb0');
+      g.addColorStop(1, '#ffcf6b');
+      ctx.save();
+      roundRect(ctx, -barW / 2, barY, barW, barH, barH / 2);
+      ctx.clip();
+      if (atMax) { ctx.shadowColor = '#ffcf6b'; ctx.shadowBlur = 9; }
+      ctx.fillStyle = g;
+      ctx.fillRect(-barW / 2, barY, barW * spdRatio, barH);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  function frame(ts) {
+    const dt = Math.min((ts - lastTs) / 1000, 0.05);
+    lastTs = ts;
+
+    if (running || particles.length > 0) {
+      // physics
+      if (running && stalled) {
+        stallTimer -= dt;
+        renderPrompt(); // refresh the countdown readout
+        if (stallTimer <= 0) recoverFromStall();
+      } else if (running) {
+        const k = Math.log(2) / cfg.halfLife;
+        speed *= Math.exp(-k * dt);
+        if (speed < EPS) speed = 0;
+
+        // progress is purely the integral of speed over time (exactly the spec's
+        // `progress += speed * dt`), divided by moonDistance — the total speed*time
+        // required to reach the moon. Typing is endless, so there is no paragraph
+        // length to calibrate against; moonDistance is the one tunable "race length."
+        progress = Math.min(1, progress + (speed * dt) / cfg.moonDistance);
+
+        if (progress >= 1) {
+          endRun(true);
+        }
+      }
+
+      if (running) {
+        // camera eases toward the real speed rather than snapping instantly, so
+        // mistakes/stalls/decay read as smooth deceleration instead of a hard stop.
+        camSpeed += (speed - camSpeed) * Math.min(1, 8 * dt);
+        worldScroll += camSpeed * dt * 900;
+      }
+
+      if (launchT > 0) launchT = Math.max(0, launchT - dt);
+      if (shakeT > 0) shakeT = Math.max(0, shakeT - dt);
+      if (flashT > 0) {
+        flashT = Math.max(0, flashT - dt);
+        promptBox.classList.toggle('flash', flashT > 0);
+      }
+
+      // particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.96; p.vy *= 0.96;
+        if (p.grow) p.size += p.grow * dt; // smoke billows outward as it dissipates
+      }
+    }
+
+    // ---- draw ----
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // sky — single gradient, colors lerped by altitude (dusk -> night -> space)
+    const sky = skyColors(progress);
+    const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bg.addColorStop(0, sky.top);
+    bg.addColorStop(1, sky.bot);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // stars only emerge once the sky is dark enough to show them
+    const starAlpha = smoothstep(0.26, 0.68, progress);
+    if (starAlpha > 0.01) {
+      for (const s of stars) {
+        const speedMul = s.layer === 1 ? 0.4 : 1;
+        let y = (s.y + worldScroll * speedMul) % (canvas.height * 3);
+        if (y < 0) y += canvas.height * 3;
+        y -= canvas.height;
+        ctx.fillStyle = s.layer === 1
+          ? `rgba(255,255,255,${0.4 * starAlpha})`
+          : `rgba(255,255,255,${0.9 * starAlpha})`;
+        ctx.beginPath();
+        ctx.arc(s.x, y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // ground falls away beneath the launch site. Anchored so that at progress 0 the
+    // horizon sits exactly at the ship's fin line — the rocket starts ON the pad.
+    drawGround(canvas.height * ROCKET_START_FRAC + 34 + progress * 2600);
+
+    // clouds stream past; band fades out entirely once we're above the weather
+    const cloudFade = 1 - smoothstep(0.50, 0.64, progress);
+    if (cloudFade > 0.01) {
+      for (const c of clouds) {
+        if (c.fg) continue; // foreground clouds drawn after the rocket
+        const y = rocketScreenY() + (progress - c.alt) * CLOUD_SPREAD * c.depth;
+        if (y < -260 || y > canvas.height + 260) continue;
+        drawCloud(c, y, cloudFade);
+      }
+    }
+
+    // moon is a fixed landmark that isn't there at the start — it only reveals
+    // itself in the final stretch, like the castle coming into view near the end
+    // of a Mario level. It never slides or moves once revealed: it fades in at
+    // the exact spot (MOON_SCREEN_Y) it's always going to occupy.
+    const moonAlpha = Math.max(0, Math.min(1, (progress - MOON_REVEAL_AT) / (1 - MOON_REVEAL_AT)));
+    if (moonAlpha > 0) {
+      const moonRadius = 30 + progress * 14;
+      ctx.save();
+      ctx.globalAlpha = moonAlpha;
+      ctx.fillStyle = '#e8ecff';
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2, MOON_SCREEN_Y, moonRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(3,4,10,0.5)';
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2 - moonRadius * 0.3, MOON_SCREEN_Y - moonRadius * 0.24, moonRadius * 0.24, 0, Math.PI * 2);
+      ctx.arc(canvas.width / 2 + moonRadius * 0.35, MOON_SCREEN_Y + moonRadius * 0.18, moonRadius * 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // altitude progress rail (thin, right side)
+    const railX = canvas.width - 26;
+    const railTop = 60, railBottom = canvas.height - 60;
+    ctx.strokeStyle = 'rgba(120,140,255,0.25)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(railX, railTop);
+    ctx.lineTo(railX, railBottom);
+    ctx.stroke();
+    const markerY = railBottom - progress * (railBottom - railTop);
+    ctx.fillStyle = '#7a8bff';
+    ctx.beginPath();
+    ctx.arc(railX, markerY, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // rocket (hidden after explosion)
+    if (hull > 0 || running) {
+      const shakeX = shakeT > 0 ? (Math.random() - 0.5) * 14 * Math.min(1, shakeT / 0.25) : 0;
+      drawRocket(canvas.width / 2, rocketScreenY(), Math.min(1, speed / (cfg.accel * 6)), shakeX);
+    }
+
+    // foreground clouds sweep in front of the ship — sells the parallax depth
+    if (cloudFade > 0.01) {
+      for (const c of clouds) {
+        if (!c.fg) continue;
+        const y = rocketScreenY() + (progress - c.alt) * CLOUD_SPREAD * c.depth;
+        if (y < -300 || y > canvas.height + 300) continue;
+        drawCloud(c, y, cloudFade * 0.95);
+      }
+    }
+
+    // particles
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // ---- HUD stats ----
+    statAlt.textContent = Math.round(progress * 100) + '%';
+    const elapsedMin = startTime ? (performance.now() - startTime) / 60000 : 0;
+    const wpm = elapsedMin > 0.0005 ? Math.round((correctChars / 5) / elapsedMin) : 0;
+    statWpm.textContent = wpm;
+    const acc = (correctChars + mistakes) > 0 ? Math.round((correctChars / (correctChars + mistakes)) * 100) : 100;
+    statAcc.textContent = acc + '%';
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---------- Dev panel ----------
+  const sAccel = document.getElementById('sAccel');
+  const sHalf = document.getElementById('sHalf');
+  const sHull = document.getElementById('sHull');
+  const sMoon = document.getElementById('sMoon');
+  const sMaxSpeed = document.getElementById('sMaxSpeed');
+  const vAccel = document.getElementById('vAccel');
+  const vHalf = document.getElementById('vHalf');
+  const vHull = document.getElementById('vHull');
+  const vMoon = document.getElementById('vMoon');
+  const vMaxSpeed = document.getElementById('vMaxSpeed');
+
+  sAccel.addEventListener('input', () => { cfg.accel = parseFloat(sAccel.value); vAccel.textContent = cfg.accel.toFixed(2); });
+  sHalf.addEventListener('input', () => { cfg.halfLife = parseFloat(sHalf.value); vHalf.textContent = cfg.halfLife.toFixed(1); });
+  sHull.addEventListener('input', () => {
+    cfg.maxHull = parseInt(sHull.value, 10);
+    vHull.textContent = cfg.maxHull;
+    hull = cfg.maxHull;
+  });
+  sMoon.addEventListener('input', () => { cfg.moonDistance = parseFloat(sMoon.value); vMoon.textContent = cfg.moonDistance; });
+  sMaxSpeed.addEventListener('input', () => {
+    cfg.maxSpeed = parseFloat(sMaxSpeed.value);
+    vMaxSpeed.textContent = cfg.maxSpeed.toFixed(2);
+    if (speed > cfg.maxSpeed) speed = cfg.maxSpeed;
+  });
+
+  document.getElementById('btnRestart').addEventListener('click', newRun);
+  document.getElementById('btnPlayAgain').addEventListener('click', newRun);
+
+  // ---------- Start ----------
+  newRun();
+})();
+</script>
+</body>
+</html>

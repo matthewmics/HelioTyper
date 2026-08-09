@@ -1,4 +1,4 @@
-# Ascent — Prototype Progress
+# Typosphere — Prototype Progress
 
 Single-file canvas prototype: [prototype.html](prototype.html). No build step, no
 dependencies, no server. Open it in a browser and it runs.

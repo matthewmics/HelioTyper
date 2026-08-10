@@ -1,0 +1,109 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typosphere — rocket sheet preview</title>
+<style>
+  body {
+    margin: 0; background: #0b0e1c; color: #e8ecff;
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px;
+  }
+  canvas { border-radius: 12px; background: #10142a; }
+  .panel { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  label { display: flex; gap: 8px; align-items: center; }
+  button {
+    background: #2a3050; color: #e8ecff; border: 1px solid #3d456b;
+    border-radius: 8px; padding: 6px 14px; cursor: pointer; font: inherit;
+  }
+  button:hover { background: #353c63; }
+  code { color: #8fa0ff; }
+</style>
+
+<h2 style="margin:0">Typosphere rocket sheet</h2>
+<canvas id="c" width="760" height="380"></canvas>
+<div class="panel">
+  <label>speed <input id="speed" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+  <button id="hit">hull breach (zap)</button>
+  <button id="blast">blast off</button>
+  <span id="state"></span>
+</div>
+<p style="opacity:.6;margin:0">Regenerate with <code>node assets/rockets/gen-rockets.mjs</code></p>
+
+<script src="atlas.js"></script>
+<script type="module">
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// One sheet per rocket. Load every rocket in the roster — a real lobby would
+// load only the ones actually in the race.
+const roster = window.ROCKET_INDEX.rockets;
+const ships = await Promise.all(roster.map(async (r) => {
+  const atlas = window.ROCKET_ATLASES[r.id];
+  const img = new Image();
+  img.src = atlas.image;
+  await img.decode();
+  return { atlas, img };
+}));
+
+/** Draw a named frame so its ship-centre anchor lands on (x, y). */
+function drawFrame(ship, name, x, y, scale = 1) {
+  const f = ship.atlas.frames[name];
+  ctx.drawImage(ship.img, f.x, f.y, f.w, f.h,
+    Math.round(x - f.ax * scale), Math.round(y - f.ay * scale),
+    f.w * scale, f.h * scale);
+}
+
+/** Pick the frame of an animation for a given elapsed time. */
+function frameAt(ship, animName, t) {
+  const a = ship.atlas.animations[animName];
+  const i = Math.floor(t * (a.fps || 12));
+  return a.frames[a.loop === false ? Math.min(i, a.frames.length - 1) : i % a.frames.length];
+}
+
+const speedEl = document.getElementById('speed');
+const stateEl = document.getElementById('state');
+let zapUntil = 0, blastAt = -99;
+
+document.getElementById('hit').onclick = () => { zapUntil = performance.now() / 1000 + 2.5; };
+document.getElementById('blast').onclick = () => { blastAt = performance.now() / 1000; };
+
+function tick(ms) {
+  const now = ms / 1000;
+  ctx.clearRect(0, 0, cv.width, cv.height);
+
+  // dusk-to-space backdrop, roughly what the game sits the ship against
+  const g = ctx.createLinearGradient(0, 0, 0, cv.height);
+  g.addColorStop(0, '#0a0d1e');
+  g.addColorStop(1, '#2a3358');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  const speed = +speedEl.value;
+  const blasting = now - blastAt < 1.2;
+  const zapping = now < zapUntil;
+
+  const gap = cv.width / (ships.length + 1);
+  ships.forEach((ship, i) => {
+    const x = gap * (i + 1), y = 130;
+    const tier = Math.min(ship.atlas.tiers - 1, Math.floor(speed * ship.atlas.tiers));
+
+    if (blasting) {
+      drawFrame(ship, frameAt(ship, 'blastoff', now - blastAt), x, y);
+    } else if (speed > 0.02) {
+      drawFrame(ship, frameAt(ship, `thrust_t${tier}`, now), x, y);
+    }
+    drawFrame(ship, 'ship', x, y);
+    if (zapping) drawFrame(ship, frameAt(ship, 'zap', now), x, y);
+
+    ctx.fillStyle = '#8b95c9';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(ship.atlas.label, x, 300);
+  });
+
+  const t0 = Math.min(ships[0].atlas.tiers - 1, Math.floor(speed * ships[0].atlas.tiers));
+  stateEl.textContent = blasting ? 'blastoff' : zapping ? 'stalled' : `thrust tier ${t0}`;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>

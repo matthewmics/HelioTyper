@@ -1,0 +1,22 @@
+{
+  "rockets": [
+    {
+      "id": "vanguard",
+      "label": "Vanguard",
+      "atlas": "vanguard.json",
+      "image": "vanguard.png"
+    },
+    {
+      "id": "kestrel",
+      "label": "Kestrel",
+      "atlas": "kestrel.json",
+      "image": "kestrel.png"
+    },
+    {
+      "id": "marauder",
+      "label": "Marauder",
+      "atlas": "marauder.json",
+      "image": "marauder.png"
+    }
+  ]
+}

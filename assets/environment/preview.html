@@ -1,0 +1,140 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typosphere — environment preview</title>
+<style>
+  body {
+    margin: 0; background: #0b0e1c; color: #e8ecff;
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px;
+  }
+  canvas { border-radius: 12px; }
+  .panel { display: flex; gap: 18px; align-items: center; }
+  label { display: flex; gap: 8px; align-items: center; }
+  code { color: #8fa0ff; }
+</style>
+
+<h2 style="margin:0">Environment</h2>
+<canvas id="c" width="900" height="560"></canvas>
+<div class="panel">
+  <label>altitude <input id="alt" type="range" min="0" max="1" step="0.005" value="0"></label>
+  <span id="state" style="opacity:.7"></span>
+</div>
+<p style="opacity:.6;margin:0">Regenerate with <code>node assets/environment/gen-environment.mjs</code></p>
+
+<script src="atlas.js"></script>
+<script type="module">
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+const atlas = window.ENV_ATLAS;
+const img = new Image();
+img.src = atlas.image;
+await img.decode();
+
+const tintCache = new Map();
+function tinted(color) {
+  if (tintCache.has(color)) return tintCache.get(color);
+  const off = document.createElement('canvas');
+  off.width = img.width; off.height = img.height;
+  const o = off.getContext('2d');
+  o.drawImage(img, 0, 0);
+  o.globalCompositeOperation = 'multiply';
+  o.fillStyle = color;
+  o.fillRect(0, 0, off.width, off.height);
+  o.globalCompositeOperation = 'destination-in';
+  o.drawImage(img, 0, 0);
+  tintCache.set(color, off);
+  return off;
+}
+
+function drawFrame(name, x, y, { alpha = 1, color = null, scale = 1 } = {}) {
+  const f = atlas.frames[name];
+  const src = color ? tinted(color) : img;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(src, f.x, f.y, f.w, f.h,
+    x - f.ax * scale, y - f.ay * scale, f.w * scale, f.h * scale);
+  ctx.restore();
+}
+
+/** Tileable strips repeat horizontally to fill any width. */
+function drawStrip(name, y, offsetX = 0, opts) {
+  const f = atlas.frames[name];
+  let x = -((offsetX % f.w) + f.w) % f.w;
+  while (x < cv.width) { drawFrame(name, x, y, opts); x += f.w; }
+}
+
+// the prototype's sky keyframes, so this previews against the real backdrop
+const SKY = [
+  { at: 0.00, top: [26, 34, 72], bot: [206, 116, 76] },
+  { at: 0.16, top: [21, 28, 64], bot: [104, 80, 120] },
+  { at: 0.40, top: [14, 20, 50], bot: [36, 44, 94] },
+  { at: 0.70, top: [7, 10, 28], bot: [16, 20, 50] },
+  { at: 1.00, top: [3, 4, 10], bot: [10, 13, 28] },
+];
+function skyColors(p) {
+  let i = 0;
+  while (i < SKY.length - 2 && p > SKY[i + 1].at) i++;
+  const a = SKY[i], b = SKY[i + 1];
+  const t = Math.max(0, Math.min(1, (p - a.at) / (b.at - a.at)));
+  const mix = (u, v) => Math.round(u + (v - u) * t);
+  return [
+    `rgb(${mix(a.top[0], b.top[0])},${mix(a.top[1], b.top[1])},${mix(a.top[2], b.top[2])})`,
+    `rgb(${mix(a.bot[0], b.bot[0])},${mix(a.bot[1], b.bot[1])},${mix(a.bot[2], b.bot[2])})`,
+  ];
+}
+const smoothstep = (a, b, x) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+const CLOUDS = [
+  { v: 0, x: 150, alt: 0.06, fg: true },
+  { v: 1, x: 620, alt: 0.13, fg: false },
+  { v: 2, x: 330, alt: 0.24, fg: false },
+  { v: 3, x: 780, alt: 0.34, fg: true },
+  { v: 1, x: 90, alt: 0.42, fg: false },
+];
+
+const altEl = document.getElementById('alt');
+
+function tick(ms) {
+  const now = ms / 1000;
+  const p = +altEl.value;
+
+  const [top, bot] = skyColors(p);
+  const g = ctx.createLinearGradient(0, 0, 0, cv.height);
+  g.addColorStop(0, top); g.addColorStop(1, bot);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // ground falls away as you climb, exactly like the prototype does
+  const horizon = 400 + p * 2600;
+  if (horizon < cv.height + 260) {
+    drawStrip('skyline', horizon - 46);
+    drawStrip('hills_far', horizon - 16);
+    drawStrip('hills_near', horizon + 10);
+    drawFrame('pad', cv.width / 2, horizon + 10);
+  }
+
+  // clouds stream past; rim fades as you climb above the light
+  const cloudFade = 1 - smoothstep(0.50, 0.64, p);
+  const rim = (1 - smoothstep(0.04, 0.30, p)) * 0.75;
+  for (const c of CLOUDS) {
+    const y = 330 + (p - c.alt) * 3200 * (c.fg ? 1.25 : 0.7);
+    if (y < -180 || y > cv.height + 180 || cloudFade <= 0.01) continue;
+    const scale = c.fg ? 1.25 : 0.85;
+    drawFrame(`cloud_${c.v}`, c.x, y, {
+      alpha: cloudFade, scale, color: c.fg ? '#42476a' : '#8b93bd',
+    });
+    if (rim > 0.01) drawFrame(`cloud_${c.v}_rim`, c.x, y, { alpha: cloudFade * rim, scale });
+  }
+
+  // Celestial bodies are not in this sheet — see assets/planets/preview.html
+  // for the outbound run past the moon and planets.
+
+  document.getElementById('state').textContent = `${Math.round(p * 100)}%`;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>

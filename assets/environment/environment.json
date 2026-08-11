@@ -1,0 +1,119 @@
+{
+  "id": "environment",
+  "image": "environment.png",
+  "note": "Draw at (x - ax, y - ay). Clouds anchor at their centre; pad anchors at the deck surface; hills and skyline anchor at their left edge on the horizon line, and tile horizontally.",
+  "size": {
+    "w": 1024,
+    "h": 1440
+  },
+  "tintable": [
+    "cloud_0",
+    "cloud_1",
+    "cloud_2",
+    "cloud_3"
+  ],
+  "tileableX": [
+    "hills_near",
+    "hills_far",
+    "skyline"
+  ],
+  "frames": {
+    "cloud_0": {
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 160,
+      "ax": 160,
+      "ay": 80
+    },
+    "cloud_1": {
+      "x": 320,
+      "y": 0,
+      "w": 320,
+      "h": 160,
+      "ax": 160,
+      "ay": 80
+    },
+    "cloud_2": {
+      "x": 640,
+      "y": 0,
+      "w": 320,
+      "h": 160,
+      "ax": 160,
+      "ay": 80
+    },
+    "cloud_3": {
+      "x": 0,
+      "y": 160,
+      "w": 320,
+      "h": 160,
+      "ax": 160,
+      "ay": 80
+    },
+    "cloud_0_rim": {
+      "x": 320,
+      "y": 160,
+      "w": 320,
+      "h": 160,
+      "ax": 160,
+      "ay": 80
+    },
+    "cloud_1_rim": {
+      "x": 640,
+      "y": 160,
+      "w": 320,
+      "h": 160,
+      "ax": 160,
+      "ay": 80
+    },
+    "cloud_2_rim": {
+      "x": 0,
+      "y": 320,
+      "w": 320,
+      "h": 160,
+      "ax": 160,
+      "ay": 80
+    },
+    "cloud_3_rim": {
+      "x": 320,
+      "y": 320,
+      "w": 320,
+      "h": 160,
+      "ax": 160,
+      "ay": 80
+    },
+    "pad": {
+      "x": 0,
+      "y": 480,
+      "w": 512,
+      "h": 256,
+      "ax": 256,
+      "ay": 168
+    },
+    "hills_far": {
+      "x": 0,
+      "y": 736,
+      "w": 1024,
+      "h": 256,
+      "ax": 0,
+      "ay": 96
+    },
+    "hills_near": {
+      "x": 0,
+      "y": 992,
+      "w": 1024,
+      "h": 256,
+      "ax": 0,
+      "ay": 96
+    },
+    "skyline": {
+      "x": 0,
+      "y": 1248,
+      "w": 1024,
+      "h": 192,
+      "ax": 0,
+      "ay": 170
+    }
+  },
+  "animations": {}
+}

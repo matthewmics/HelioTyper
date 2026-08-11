@@ -1,0 +1,115 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typosphere — planets preview</title>
+<style>
+  body {
+    margin: 0; background: #05060f; color: #e8ecff;
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px;
+  }
+  canvas { border-radius: 12px; }
+  .panel { display: flex; gap: 18px; align-items: center; }
+  label { display: flex; gap: 8px; align-items: center; }
+  input[type=range] { width: 320px; }
+  code { color: #8fa0ff; }
+  #state { min-width: 210px; }
+</style>
+
+<h2 style="margin:0">Planets — the outbound run</h2>
+<canvas id="c" width="880" height="560"></canvas>
+<div class="panel">
+  <label>distance <input id="p" type="range" min="0" max="1" step="0.002" value="0"></label>
+  <span id="state" style="opacity:.75"></span>
+</div>
+<p style="opacity:.6;margin:0">Regenerate with <code>node assets/planets/gen-planets.mjs</code></p>
+
+<script src="atlas.js"></script>
+<script type="module">
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+const atlas = window.PLANET_ATLAS;
+const img = new Image();
+img.src = atlas.image;
+await img.decode();
+
+function drawFrame(name, x, y, scale = 1, alpha = 1) {
+  const f = atlas.frames[name];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(img, f.x, f.y, f.w, f.h,
+    x - f.ax * scale, y - f.ay * scale, f.w * scale, f.h * scale);
+  ctx.restore();
+}
+
+// Each body sits at a fixed point along the run and streams past the ship,
+// the way the prototype's clouds already do. Sizes here are apparent size —
+// the sprite radius is only a starting point.
+const RUN = [
+  { name: 'moon', at: 0.06, scale: 0.55, x: 0.30 },
+  { name: 'mars', at: 0.20, scale: 0.60, x: 0.70 },
+  { name: 'jupiter', at: 0.38, scale: 0.85, x: 0.26 },
+  { name: 'saturn', at: 0.54, scale: 0.70, x: 0.68 },
+  { name: 'uranus', at: 0.68, scale: 0.55, x: 0.28 },
+  { name: 'neptune', at: 0.82, scale: 0.55, x: 0.72 },
+  { name: 'pluto', at: 0.93, scale: 0.60, x: 0.42 },
+];
+
+const SPREAD = 2600;         // how far apart they feel
+const SHIP_Y = 400;
+const pEl = document.getElementById('p');
+
+let stars = [];
+for (let i = 0; i < 340; i++) {
+  stars.push({
+    x: Math.random() * cv.width,
+    y: Math.random() * cv.height * 3,
+    r: Math.random() * 1.4 + 0.3,
+    layer: Math.random() < 0.7 ? 1 : 2,
+  });
+}
+
+function tick(ms) {
+  const now = ms / 1000;
+  const p = +pEl.value;
+
+  ctx.fillStyle = '#05060f';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  for (const s of stars) {
+    let y = (s.y + p * SPREAD * (s.layer === 1 ? 0.25 : 0.6)) % (cv.height * 3);
+    if (y > cv.height) continue;
+    ctx.fillStyle = s.layer === 1 ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.9)';
+    ctx.beginPath();
+    ctx.arc(s.x, y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  let nearest = null, nearestD = 1e9;
+  for (const b of RUN) {
+    // below the ship until you reach it, above once you've passed
+    const y = SHIP_Y + (p - b.at) * SPREAD;
+    if (y < -420 || y > cv.height + 420) continue;
+    drawFrame(b.name, b.x * cv.width, y, b.scale);
+    if (b.name === 'moon') drawFrame('beacon_' + (Math.floor(now * 6) % 4), b.x * cv.width, y, b.scale);
+    const d = Math.abs(p - b.at);
+    if (d < nearestD) { nearestD = d; nearest = b; }
+  }
+
+  // the ship's position marker
+  ctx.strokeStyle = 'rgba(140,160,255,.5)';
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(0, SHIP_Y); ctx.lineTo(cv.width, SHIP_Y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#8fa0ff';
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.fillText('ship', 8, SHIP_Y - 6);
+
+  document.getElementById('state').textContent =
+    `${Math.round(p * 100)}%  ·  nearest: ${nearest ? nearest.name : '—'}`;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>

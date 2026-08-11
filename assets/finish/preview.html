@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typosphere — finish line preview</title>
+<style>
+  body {
+    margin: 0; background: #04050d; color: #e8ecff;
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px;
+  }
+  canvas { border-radius: 12px; }
+  .panel { display: flex; gap: 18px; align-items: center; }
+  label { display: flex; gap: 8px; align-items: center; }
+  input[type=range] { width: 300px; }
+  code { color: #8fa0ff; }
+  #state { min-width: 150px; opacity: .75; }
+</style>
+
+<h2 style="margin:0">The heliopause</h2>
+<canvas id="c" width="900" height="520"></canvas>
+<div class="panel">
+  <label>approach <input id="p" type="range" min="0" max="1" step="0.002" value="0.3"></label>
+  <label><input id="add" type="checkbox" checked> additive blend</label>
+  <span id="state"></span>
+</div>
+<p style="opacity:.6;margin:0">Regenerate with <code>node assets/finish/gen-finish.mjs</code></p>
+
+<script src="atlas.js"></script>
+<script src="../rockets/atlas.js"></script>
+<script type="module">
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+const atlas = window.FINISH_ATLAS;
+const img = new Image();
+img.src = atlas.image;
+await img.decode();
+
+// a rocket, so the approach reads at the right scale
+const ship = window.ROCKET_ATLASES.vanguard;
+const shipImg = new Image();
+shipImg.src = '../rockets/' + ship.image;
+await shipImg.decode();
+
+const stars = [];
+for (let i = 0; i < 420; i++) {
+  stars.push({
+    x: Math.random() * cv.width,
+    y: Math.random() * cv.height,
+    r: Math.random() * 1.3 + 0.3,
+    a: 0.3 + Math.random() * 0.7,
+  });
+}
+
+const pEl = document.getElementById('p');
+const addEl = document.getElementById('add');
+const FINISH_Y_AT_END = 150;   // where the boundary sits once revealed
+
+function tick(ms) {
+  const now = ms / 1000;
+  const p = +pEl.value;
+
+  ctx.fillStyle = '#04050d';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  for (const s of stars) {
+    ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // the boundary is a FIXED landmark — it does not move. The ship climbs to it.
+  const a = atlas.animations.heliopause;
+  const name = a.frames[Math.floor(now * a.fps) % a.frames.length];
+  const f = atlas.frames[name];
+
+  ctx.save();
+  if (addEl.checked) ctx.globalCompositeOperation = 'lighter';
+  // fades in over the final stretch, like the moon did in the prototype
+  ctx.globalAlpha = Math.max(0, Math.min(1, (p - 0.15) / 0.35));
+  for (let x = 0; x < cv.width; x += f.w) {
+    ctx.drawImage(img, f.x, f.y, f.w, f.h, x - f.ax, FINISH_Y_AT_END - f.ay, f.w, f.h);
+  }
+  ctx.restore();
+
+  // ship climbs from the bottom toward the line
+  const shipY = 460 + (FINISH_Y_AT_END - 460) * p;
+  const sf = ship.frames;
+  const tier = Math.min(ship.tiers - 1, Math.floor(0.6 * ship.tiers));
+  for (const n of [`thrust_t${tier}_${Math.floor(now * 24) % 4}`, 'ship']) {
+    const g = sf[n];
+    ctx.drawImage(shipImg, g.x, g.y, g.w, g.h,
+      cv.width / 2 - g.ax, shipY - g.ay, g.w, g.h);
+  }
+
+  document.getElementById('state').textContent =
+    p >= 0.995 ? 'CROSSED' : `${Math.round(p * 100)}% to the edge`;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>

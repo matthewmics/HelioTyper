@@ -1,0 +1,148 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typosphere — effects preview</title>
+<style>
+  body {
+    margin: 0; background: #0b0e1c; color: #e8ecff;
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px;
+  }
+  canvas { border-radius: 12px; background: #10142a; }
+  .panel { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  button {
+    background: #2a3050; color: #e8ecff; border: 1px solid #3d456b;
+    border-radius: 8px; padding: 6px 14px; cursor: pointer; font: inherit;
+  }
+  button:hover { background: #353c63; }
+  code { color: #8fa0ff; }
+</style>
+
+<h2 style="margin:0">Effects</h2>
+<canvas id="c" width="820" height="420"></canvas>
+<div class="panel">
+  <button id="smoke">smoke burst</button>
+  <button id="breach">hull breach</button>
+  <span id="state" style="opacity:.7"></span>
+</div>
+<p style="opacity:.6;margin:0">Regenerate with <code>node assets/effects/gen-effects.mjs</code></p>
+
+<script src="atlas.js"></script>
+<script type="module">
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+const atlas = window.FX_ATLAS;
+const img = new Image();
+img.src = atlas.image;
+await img.decode();
+
+// Tinting: the particle textures are white, so multiply them through an
+// offscreen canvas to get the colour you want at runtime.
+const tintCache = new Map();
+function tinted(color) {
+  if (tintCache.has(color)) return tintCache.get(color);
+  const off = document.createElement('canvas');
+  off.width = img.width; off.height = img.height;
+  const o = off.getContext('2d');
+  o.drawImage(img, 0, 0);
+  o.globalCompositeOperation = 'multiply';
+  o.fillStyle = color;
+  o.fillRect(0, 0, off.width, off.height);
+  o.globalCompositeOperation = 'destination-in';
+  o.drawImage(img, 0, 0);
+  tintCache.set(color, off);
+  return off;
+}
+
+function drawFrame(name, x, y, { scale = 1, alpha = 1, color = null, rot = 0 } = {}) {
+  const f = atlas.frames[name];
+  const src = color ? tinted(color) : img;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  if (rot) ctx.rotate(rot);
+  ctx.drawImage(src, f.x, f.y, f.w, f.h,
+    -f.ax * scale, -f.ay * scale, f.w * scale, f.h * scale);
+  ctx.restore();
+}
+
+const particles = [];
+let breachAt = -99;
+
+document.getElementById('smoke').onclick = () => {
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 40 + Math.random() * 150;
+    particles.push({
+      x: 410, y: 300, vx: Math.cos(a) * s, vy: Math.abs(Math.sin(a)) * s * 0.4 - 30,
+      life: 1.2 + Math.random() * 1.1, max: 2.3,
+      frame: `smoke_${Math.floor(Math.random() * 4)}`,
+      scale: 0.35 + Math.random() * 0.5, grow: 0.5,
+      rot: Math.random() * Math.PI * 2,
+      warm: Math.random() < 0.55,
+    });
+  }
+  for (let i = 0; i < 22; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 90 + Math.random() * 220;
+    particles.push({
+      x: 410, y: 300, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.7,
+      life: 0.3 + Math.random() * 0.5, max: 0.8,
+      frame: Math.random() < 0.5 ? 'spark' : 'ember',
+      scale: 0.5 + Math.random() * 0.7, grow: 0, rot: 0, ember: true,
+    });
+  }
+};
+document.getElementById('breach').onclick = () => { breachAt = performance.now() / 1000; };
+
+let last = performance.now() / 1000;
+function tick(ms) {
+  const now = ms / 1000;
+  const dt = Math.min(0.05, now - last);
+  last = now;
+
+  ctx.fillStyle = '#0d1124';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // static swatch row
+  ctx.fillStyle = '#6a7190';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.fillText('smoke_0..3 (tinted warm / cold)', 24, 24);
+  for (let i = 0; i < 4; i++) {
+    drawFrame(`smoke_${i}`, 60 + i * 64, 70, { scale: 0.6, color: '#ffc08a' });
+    drawFrame(`smoke_${i}`, 60 + i * 64, 130, { scale: 0.6, color: '#7c839c' });
+  }
+  ctx.fillText('spark / ember / star', 330, 24);
+  drawFrame('spark', 360, 70, { color: '#ffd98a' });
+  drawFrame('ember', 400, 70, { color: '#ff9d4d' });
+  drawFrame('star', 436, 70);
+
+  // particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= 0.95; p.vy *= 0.95;
+    p.scale += p.grow * dt;
+    drawFrame(p.frame, p.x, p.y, {
+      scale: p.scale,
+      alpha: Math.max(0, p.life / p.max),
+      rot: p.rot,
+      color: p.ember ? '#ffd08a' : (p.warm ? '#ffb488' : '#8a90a8'),
+    });
+  }
+
+  // breach burst
+  const bt = now - breachAt;
+  const anim = atlas.animations.breach;
+  if (bt >= 0 && bt < anim.frames.length / anim.fps) {
+    const i = Math.min(anim.frames.length - 1, Math.floor(bt * anim.fps));
+    drawFrame(anim.frames[i], 620, 300);
+    document.getElementById('state').textContent = `breach frame ${i}`;
+  }
+
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>

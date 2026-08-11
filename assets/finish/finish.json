@@ -1,0 +1,81 @@
+{
+  "id": "finish",
+  "image": "finish.png",
+  "note": "The heliopause. Anchored at the LEFT EDGE on the shock front, so draw at (tileX, finishLineY) and repeat horizontally to fill the viewport.",
+  "size": {
+    "w": 1024,
+    "h": 1920
+  },
+  "tileableX": [
+    "heliopause_0",
+    "heliopause_1",
+    "heliopause_2",
+    "heliopause_3",
+    "heliopause_4",
+    "heliopause_5"
+  ],
+  "frames": {
+    "heliopause_0": {
+      "x": 0,
+      "y": 0,
+      "w": 1024,
+      "h": 320,
+      "ax": 0,
+      "ay": 250
+    },
+    "heliopause_1": {
+      "x": 0,
+      "y": 320,
+      "w": 1024,
+      "h": 320,
+      "ax": 0,
+      "ay": 250
+    },
+    "heliopause_2": {
+      "x": 0,
+      "y": 640,
+      "w": 1024,
+      "h": 320,
+      "ax": 0,
+      "ay": 250
+    },
+    "heliopause_3": {
+      "x": 0,
+      "y": 960,
+      "w": 1024,
+      "h": 320,
+      "ax": 0,
+      "ay": 250
+    },
+    "heliopause_4": {
+      "x": 0,
+      "y": 1280,
+      "w": 1024,
+      "h": 320,
+      "ax": 0,
+      "ay": 250
+    },
+    "heliopause_5": {
+      "x": 0,
+      "y": 1600,
+      "w": 1024,
+      "h": 320,
+      "ax": 0,
+      "ay": 250
+    }
+  },
+  "animations": {
+    "heliopause": {
+      "frames": [
+        "heliopause_0",
+        "heliopause_1",
+        "heliopause_2",
+        "heliopause_3",
+        "heliopause_4",
+        "heliopause_5"
+      ],
+      "fps": 6,
+      "loop": true
+    }
+  }
+}

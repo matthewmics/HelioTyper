@@ -8,3 +8,4 @@ assets
 **/coverage
 **/*.log
 .env
+**/.env

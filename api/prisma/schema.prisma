@@ -1,0 +1,26 @@
+// Prisma schema for the HelioTyper API.
+// Docs: https://pris.ly/d/prisma-schema
+// The datasource URL lives in prisma.config.ts, not here.
+
+// The client is generated into src/ so both build paths compile it: `nest build`
+// (tsc) and the webpack HMR dev build. CJS output with extensionless imports is
+// what those two agree on, the inferred ESM default emits `import.meta.url` and
+// `.js` specifiers that neither can resolve here.
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -97,6 +97,16 @@ This is a pnpm workspace (`pnpm-workspace.yaml` at the repo root) with two packa
 
 Copy `.env.example` to `.env` before first run, then `docker compose up -d`.
 
+**Prisma** (v7, `api/` only): schema in [api/prisma/schema.prisma](api/prisma/schema.prisma), CLI config in [api/prisma.config.ts](api/prisma.config.ts). One model so far, `User`. [api/src/prisma/prisma.module.ts](api/src/prisma/prisma.module.ts) is `@Global()`, so injecting `PrismaService` anywhere needs no extra import.
+
+Notes specific to v7:
+- There is no Rust query engine, so connections go through a driver adapter (`@prisma/adapter-pg`), constructed in [api/src/prisma/prisma.service.ts](api/src/prisma/prisma.service.ts).
+- The CLI no longer auto-loads `.env`. `prisma.config.ts` does it with `import 'dotenv/config'`, reading `api/.env` (copy `api/.env.example` to `api/.env`), which points at `localhost:5432` for host-side CLI runs. In the container `docker-compose.yml` already sets `DATABASE_URL` to the `postgres` service, and dotenv does not override an existing value.
+- The client is generated into `api/src/generated/prisma` (gitignored) rather than `node_modules`, so it has to be built before the API compiles: `pnpm --filter api prisma:generate`, and again after every schema change. [api/Dockerfile](api/Dockerfile) runs it too, so a fresh image works even though the dev bind mount then shadows it with the host copy. Output is plain TypeScript with no platform-specific artifacts, so host-generated files run fine in the Linux container.
+- The generator is pinned to `moduleFormat = "cjs"` with `importFileExtension = ""`. Inferred from `tsconfig.json`'s `module: nodenext` it would emit ESM using `import.meta.url` and `.js` specifiers, which neither `nest build` (CJS) nor the webpack dev build can resolve.
+- `prisma.config.ts` sits at the package root and is excluded in [api/tsconfig.build.json](api/tsconfig.build.json). Without that exclusion tsc widens `rootDir` to the package root and emits `dist/src/main.js`, breaking `start:prod`.
+- Migrations: `pnpm --filter api prisma:migrate --name <name>` from the host, or `docker compose exec api pnpm prisma:migrate --name <name>`.
+
 **Hot reload**: `api/start:dev` uses NestJS's webpack HMR recipe (https://docs.nestjs.com/recipes/hot-reload), not `nest start --watch`, see [api/webpack-hmr.config.js](api/webpack-hmr.config.js). Inside Docker, webpack's file watcher is set to poll (`watchOptions.poll`) because native filesystem change events don't reliably cross the bind mount from the Windows host into the Linux container.
 
 `web` normally runs on Turbopack (`next dev`, the `web/package.json` `dev` script, used for host-side dev), but as of Next.js 16 Turbopack has no documented polling mode, so it never sees changes through the same bind mount. The `web` container's `Dockerfile` CMD overrides this to `next dev --webpack` with `WATCHPACK_POLLING=true` instead, webpack HMR with polling, same fix as `api`, just Turbopack-only in Docker specifically. Host-side `pnpm --filter web dev` is unaffected and still uses Turbopack.

@@ -69,3 +69,34 @@ HelioTyper is a typing race game: type a stream of sentences correctly to accele
 3. NestJS gateway with a server-authoritative loop, starting single-player against the server.
 4. Multiplayer: lobby, room codes, countdown, minimap, multiple rockets.
 5. Persistence (Postgres/Prisma) for race history and leaderboards.
+
+## Local Development
+
+This is a pnpm workspace (`pnpm-workspace.yaml` at the repo root) with two packages: [api/](api/) (NestJS) and [web/](web/) (Next.js). Run `pnpm install` at the repo root, not inside either package.
+
+**Hosts file**, add these entries (already added on the primary dev machine):
+```
+127.0.0.1 heliotyper.local
+127.0.0.1 admin.heliotyper.local
+127.0.0.1 pgadmin.heliotyper.local
+127.0.0.1 api.heliotyper.local
+127.0.0.1 mail.heliotyper.local
+```
+`admin.heliotyper.local` is reserved for a future admin project that doesn't exist yet, it isn't dockerized or routed.
+
+**Docker**: both `api/` and `web/` are containerized. `docker-compose.yml` at the repo root brings up:
+- `api`, built from [api/Dockerfile](api/Dockerfile), source bind-mounted with webpack HMR for hot reload (see below), routed at `api.heliotyper.local`.
+- `web`, built from [web/Dockerfile](web/Dockerfile), source bind-mounted, routed at `heliotyper.local`.
+- `postgres` (Postgres 18), internal only, also published on host port 5432.
+- `redis`, internal only, also published on host port 6379.
+- `mailpit`, an SMTP catcher for local email testing, routed at `mail.heliotyper.local`, SMTP published on host port 1025.
+- `pgadmin`, routed at `pgadmin.heliotyper.local`.
+- `traefik`, the reverse proxy that resolves the `*.heliotyper.local` hostnames above to the right container, dashboard on `localhost:8080`.
+
+Copy `.env.example` to `.env` before first run, then `docker compose up -d`.
+
+**Hot reload**: `api/start:dev` uses NestJS's webpack HMR recipe (https://docs.nestjs.com/recipes/hot-reload), not `nest start --watch`, see [api/webpack-hmr.config.js](api/webpack-hmr.config.js). Inside Docker, webpack's file watcher is set to poll (`watchOptions.poll`) because native filesystem change events don't reliably cross the bind mount from the Windows host into the Linux container.
+
+`web` normally runs on Turbopack (`next dev`, the `web/package.json` `dev` script, used for host-side dev), but as of Next.js 16 Turbopack has no documented polling mode, so it never sees changes through the same bind mount. The `web` container's `Dockerfile` CMD overrides this to `next dev --webpack` with `WATCHPACK_POLLING=true` instead, webpack HMR with polling, same fix as `api`, just Turbopack-only in Docker specifically. Host-side `pnpm --filter web dev` is unaffected and still uses Turbopack.
+
+Getting webpack to recompile on file changes was only half the fix. The browser tab also needs the dev server to push it a message over `/_next/hmr` so it knows to Fast Refresh, and Next's dev server blocks that push by default for any origin other than `localhost`, silently, with only a log line in the container ("Cross-origin access to Next.js dev resources is blocked by default for safety"). Since we load the app at `heliotyper.local` through Traefik, this blocked every push, edits compiled fine server-side but never reached the open tab, so it looked like hot reload wasn't working until a manual refresh. Fixed via `allowedDevOrigins: ["heliotyper.local"]` in [web/next.config.ts](web/next.config.ts) (requires a dev server restart to take effect, config isn't hot-reloaded).

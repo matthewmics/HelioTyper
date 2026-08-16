@@ -33,6 +33,14 @@ export interface RaceConfig {
    * scene freezing.
    */
   minSpeed: number;
+  /**
+   * Seconds the ship is locked out after a hull breach.
+   *
+   * The single biggest lever on how punishing a breach feels, so it belongs on
+   * the dev panel next to hull segments rather than buried as a constant: the
+   * two are only meaningful when tuned against each other.
+   */
+  stallDuration: number;
 }
 
 export const DEFAULT_CONFIG: Readonly<RaceConfig> = {
@@ -42,13 +50,11 @@ export const DEFAULT_CONFIG: Readonly<RaceConfig> = {
   raceDistance: 30,
   maxSpeed: 1.2,
   minSpeed: 0.15,
+  stallDuration: 5,
 };
 
 /** Speed below this is treated as a dead stop, so decay actually reaches zero. */
 export const EPS = 0.001;
-
-/** Seconds the ship is locked out after a hull breach. */
-export const STALL_DURATION = 5;
 
 /** Ignition flare, matched to the blastoff animation (8 frames at 7fps ~ 1.14s). */
 export const LAUNCH_DURATION = 1.1;

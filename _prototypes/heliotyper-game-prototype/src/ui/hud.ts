@@ -92,6 +92,7 @@ export class Hud {
     slider('sAccel', 'vAccel', (v) => (cfg.accel = v), (v) => v.toFixed(2));
     slider('sHalf', 'vHalf', (v) => (cfg.halfLife = v), (v) => v.toFixed(1));
     slider('sHull', 'vHull', (v) => this._race.setMaxHull(v), (v) => String(v));
+    slider('sStall', 'vStall', (v) => this._race.setStallDuration(v), (v) => v.toFixed(1));
     slider('sDist', 'vDist', (v) => (cfg.raceDistance = v), (v) => String(v));
     slider('sMaxSpeed', 'vMaxSpeed', (v) => this._race.setMaxSpeed(v), (v) => v.toFixed(2));
     slider('sMinSpeed', 'vMinSpeed', (v) => (cfg.minSpeed = v), (v) => v.toFixed(2));

@@ -1,12 +1,4 @@
-import {
-  ATMO_END,
-  DEFAULT_CONFIG,
-  EPS,
-  LAUNCH_DURATION,
-  STALL_DURATION,
-  TIER_LEN,
-  type RaceConfig,
-} from './config';
+import { ATMO_END, DEFAULT_CONFIG, EPS, LAUNCH_DURATION, TIER_LEN, type RaceConfig } from './config';
 import { pickSentence } from './text';
 
 export type Phase = 'racing' | 'stalled' | 'finished';
@@ -132,7 +124,7 @@ export class Race {
     if (this.hull <= 0) {
       this.hull = 0;
       this.phase = 'stalled';
-      this.stallTimer = STALL_DURATION;
+      this.stallTimer = this.cfg.stallDuration;
       this.hooks.onBreach?.();
     }
     // Back to the cruise floor, which the breach above has already dropped to a
@@ -244,5 +236,12 @@ export class Race {
   setMaxSpeed(v: number): void {
     this.cfg.maxSpeed = v;
     if (this.speed > v) this.speed = v;
+  }
+
+  setStallDuration(v: number): void {
+    this.cfg.stallDuration = v;
+    // Shortening it mid-stall has to cut the running countdown too, otherwise
+    // you sit watching a timer tick down from longer than the setting says.
+    if (this.stallTimer > v) this.stallTimer = v;
   }
 }

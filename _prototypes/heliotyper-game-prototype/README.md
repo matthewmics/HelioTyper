@@ -207,7 +207,8 @@ uniform, do use `ParticleEmitter`.
 ## Dev panel
 
 Top left, and it edits the live config: accel, decay half-life, hull segments,
-race distance, max speed, min (cruise) speed, plus a rocket picker. The picker is there to keep the
+hull breach stall, race distance, max speed, min (cruise) speed, plus a rocket
+picker. The picker is there to keep the
 claim in `assets/rockets/README.md` honest: swapping ships is one call to
 `Rocket.useRocket()` and nothing else, because every sheet exposes the same
 animation names at the same anchor.

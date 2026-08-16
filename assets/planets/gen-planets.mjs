@@ -1,5 +1,5 @@
 /**
- * Typosphere planets generator — the bodies the rocket passes on the way out.
+ * HelioTyper planets generator: the bodies the rocket passes on the way out.
  *
  * Run with:  node assets/planets/gen-planets.mjs
  *

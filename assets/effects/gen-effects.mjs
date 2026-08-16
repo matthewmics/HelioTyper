@@ -1,5 +1,5 @@
 /**
- * Typosphere effects generator — particle textures + the hull-breach burst.
+ * HelioTyper effects generator: particle textures and the hull-breach burst.
  *
  * Run with:  node assets/effects/gen-effects.mjs
  *

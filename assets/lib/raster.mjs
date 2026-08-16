@@ -1,5 +1,5 @@
 /**
- * Shared software rasteriser for Typosphere's sprite generators.
+ * Shared software rasteriser for HelioTyper's sprite generators.
  *
  * Zero dependencies. Everything is drawn at SS× and box-averaged down, which is
  * where the clean antialiased edges come from, then encoded to PNG by hand over

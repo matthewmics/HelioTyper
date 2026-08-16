@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HelioTyper: Excalibur prototype</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #05060a;
+        overflow: hidden;
+        height: 100%;
+      }
+      #game {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #e8ecff;
+      }
+
+      /* ---- typing prompt ---- */
+      #promptBox {
+        position: absolute;
+        bottom: 5%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(700px, 82vw);
+        max-width: 82vw;
+        box-sizing: border-box;
+        background: rgba(10, 12, 24, 0.72);
+        border: 1px solid rgba(120, 140, 255, 0.25);
+        border-radius: 12px;
+        padding: 20px 26px;
+        font-size: 24px;
+        line-height: 1.55;
+        letter-spacing: 0.3px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+        transition:
+          border-color 0.08s,
+          background 0.08s;
+        overflow-wrap: break-word;
+        text-align: center;
+      }
+      #promptBox.flash {
+        border-color: #ff4d5e;
+        background: rgba(60, 10, 16, 0.75);
+      }
+      #promptBox.stalled {
+        border-color: #ff4d5e;
+        background: rgba(40, 6, 10, 0.8);
+        animation: stalledGlitch 0.12s steps(2) infinite;
+      }
+      /* Every step keeps the -50% that centres the box: a bare translateX here
+         would replace it and throw the panel off to one side mid-stall. */
+      @keyframes stalledGlitch {
+        0% {
+          transform: translateX(-50%);
+          opacity: 1;
+        }
+        25% {
+          transform: translateX(calc(-50% - 3px));
+          opacity: 0.75;
+        }
+        50% {
+          transform: translateX(calc(-50% + 2px));
+          opacity: 0.95;
+        }
+        75% {
+          transform: translateX(calc(-50% - 2px));
+          opacity: 0.6;
+        }
+        100% {
+          transform: translateX(-50%);
+          opacity: 0.9;
+        }
+      }
+      .stalledMsg {
+        text-align: center;
+        color: #ff5d6c;
+        font-weight: 700;
+        letter-spacing: 1px;
+      }
+      .stalledMsg .countdown {
+        display: block;
+        margin-top: 6px;
+        font-size: 30px;
+        color: #fff;
+        letter-spacing: 2px;
+      }
+
+      .ch.correct {
+        color: #6dffb0;
+      }
+      .ch.current {
+        color: #fff;
+        text-decoration: underline;
+        text-decoration-color: #7a8bff;
+      }
+      .ch.pending {
+        color: #6a7190;
+      }
+
+      /* ---- stats ---- */
+      #statsBar {
+        position: absolute;
+        top: 3%;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 28px;
+        font-size: 14px;
+        color: #9aa3c7;
+        letter-spacing: 0.5px;
+      }
+      #statsBar b {
+        color: #e8ecff;
+        font-size: 16px;
+      }
+
+      /* ---- the run rail: one tick per body, so you can see what is next ---- */
+      #rail {
+        position: absolute;
+        right: 26px;
+        top: 60px;
+        bottom: 60px;
+        width: 2px;
+        background: rgba(120, 140, 255, 0.22);
+      }
+      #rail .tick {
+        position: absolute;
+        right: -3px;
+        width: 8px;
+        height: 2px;
+        background: rgba(120, 140, 255, 0.45);
+      }
+      #rail .tick.passed {
+        background: rgba(109, 255, 176, 0.7);
+      }
+      #rail .tick span {
+        position: absolute;
+        right: 14px;
+        top: -7px;
+        font-size: 10px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #59608a;
+        white-space: nowrap;
+      }
+      #rail .tick.passed span {
+        color: #6dffb0;
+      }
+      #rail .finish {
+        position: absolute;
+        right: -5px;
+        top: -1px;
+        width: 12px;
+        height: 3px;
+        background: #9fd6ff;
+        box-shadow: 0 0 8px #9fd6ff;
+      }
+      #railMarker {
+        position: absolute;
+        right: -4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #7a8bff;
+        box-shadow: 0 0 10px rgba(122, 139, 255, 0.9);
+        transform: translateY(-50%);
+      }
+
+      /* ---- dev panel ---- */
+      #devPanel {
+        position: absolute;
+        left: 12px;
+        top: 12px;
+        width: 220px;
+        background: rgba(10, 12, 24, 0.75);
+        border: 1px solid rgba(120, 140, 255, 0.2);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 12px;
+        pointer-events: all;
+      }
+      #devPanel h3 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        color: #8b93c4;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      #devPanel label {
+        display: block;
+        margin-top: 8px;
+        color: #9aa3c7;
+      }
+      #devPanel input[type='range'] {
+        width: 100%;
+      }
+      #devPanel select {
+        width: 100%;
+        margin-top: 3px;
+        background: #171b30;
+        color: #e8ecff;
+        border: 1px solid #3a4268;
+        border-radius: 5px;
+        padding: 4px;
+        font-size: 12px;
+      }
+      #devPanel .val {
+        color: #e8ecff;
+        float: right;
+      }
+      #devPanel button {
+        margin-top: 12px;
+        width: 100%;
+        pointer-events: all;
+        cursor: pointer;
+        background: #2a3050;
+        border: 1px solid #4a5384;
+        color: #e8ecff;
+        padding: 6px;
+        border-radius: 6px;
+      }
+
+      /* ---- end screen ---- */
+      #endScreen {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 10px;
+        background: rgba(3, 4, 10, 0.85);
+        pointer-events: all;
+      }
+      #endScreen.show {
+        display: flex;
+      }
+      #endScreen h1 {
+        font-size: 40px;
+        margin: 0;
+      }
+      #endScreen .row {
+        color: #b7c0ea;
+        font-size: 16px;
+      }
+      #endScreen button {
+        margin-top: 18px;
+        cursor: pointer;
+        background: #4c5bff;
+        border: none;
+        color: white;
+        font-size: 15px;
+        padding: 10px 22px;
+        border-radius: 8px;
+      }
+      #endScreen button:hover {
+        background: #6272ff;
+      }
+
+      #hint {
+        position: absolute;
+        bottom: 15%;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 13px;
+        color: #6a7190;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div id="statsBar">
+        <div>WPM <b id="statWpm">0</b></div>
+        <div>ACCURACY <b id="statAcc">100%</b></div>
+        <div>DISTANCE <b id="statDist">0%</b></div>
+      </div>
+
+      <div id="rail">
+        <div class="finish"></div>
+        <div id="railMarker"></div>
+      </div>
+
+      <div id="promptBox"></div>
+      <div id="hint">Build speed and stay consistent. Stop typing and you coast to a halt.</div>
+
+      <div id="devPanel">
+        <h3>DEV TUNING</h3>
+        <label
+          >Rocket
+          <select id="selRocket"></select>
+        </label>
+        <label
+          >Accel / char <span class="val" id="vAccel">0.09</span>
+          <input type="range" id="sAccel" min="0.02" max="0.30" step="0.01" value="0.09" />
+        </label>
+        <label
+          >Decay half-life (s) <span class="val" id="vHalf">1.4</span>
+          <input type="range" id="sHalf" min="0.4" max="4.0" step="0.1" value="1.4" />
+        </label>
+        <label
+          >Hull segments <span class="val" id="vHull">5</span>
+          <input type="range" id="sHull" min="1" max="10" step="1" value="5" />
+        </label>
+        <label
+          >Race distance <span class="val" id="vDist">30</span>
+          <input type="range" id="sDist" min="6" max="120" step="1" value="30" />
+        </label>
+        <label
+          >Max speed <span class="val" id="vMaxSpeed">1.20</span>
+          <input type="range" id="sMaxSpeed" min="0.2" max="3.0" step="0.05" value="1.2" />
+        </label>
+        <button id="btnRestart">Restart</button>
+      </div>
+
+      <div id="endScreen">
+        <h1 id="endTitle">You crossed the heliopause</h1>
+        <div class="row" id="endStats"></div>
+        <button id="btnPlayAgain">Play again</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

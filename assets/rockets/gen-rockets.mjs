@@ -1,5 +1,5 @@
 /**
- * Typosphere sprite generator.
+ * HelioTyper sprite generator.
  *
  * Draws the rockets procedurally and writes one self-contained sheet per
  * rocket (<id>.png + <id>.json), plus index.json and atlas.js, alongside this

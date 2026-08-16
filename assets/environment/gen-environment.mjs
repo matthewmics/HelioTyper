@@ -1,5 +1,5 @@
 /**
- * Typosphere environment generator — clouds, ground layers, launch pad.
+ * HelioTyper environment generator: clouds, ground layers, launch pad.
  *
  * Run with:  node assets/environment/gen-environment.mjs
  *

@@ -1,5 +1,5 @@
 /**
- * Typosphere finish line — the heliopause.
+ * HelioTyper finish line: the heliopause.
  *
  * Run with:  node assets/finish/gen-finish.mjs
  *

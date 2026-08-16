@@ -64,7 +64,7 @@ export class RaceScene extends Scene {
     this._stars = new Starfield(this, art.effects);
     this._ground = new Ground(this, art.environment);
     this._clouds = new CloudLayer(this, art.environment);
-    this._planets = new PlanetRun(this, art.planets);
+    this._planets = new PlanetRun(this, art.planets, art.effects);
     this._heliopause = new Heliopause(this, art.finish);
     this._effects = new Effects(this, art.effects);
 

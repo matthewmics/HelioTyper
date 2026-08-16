@@ -23,6 +23,8 @@ export interface HudCallbacks {
  */
 export class Hud {
   private readonly _prompt = el('promptBox');
+  private readonly _promptText = el('promptText');
+  private readonly _stallTimer = el('stallTimer');
   private readonly _statWpm = el('statWpm');
   private readonly _statAcc = el('statAcc');
   private readonly _statDist = el('statDist');
@@ -92,6 +94,7 @@ export class Hud {
     slider('sHull', 'vHull', (v) => this._race.setMaxHull(v), (v) => String(v));
     slider('sDist', 'vDist', (v) => (cfg.raceDistance = v), (v) => String(v));
     slider('sMaxSpeed', 'vMaxSpeed', (v) => this._race.setMaxSpeed(v), (v) => v.toFixed(2));
+    slider('sMinSpeed', 'vMinSpeed', (v) => (cfg.minSpeed = v), (v) => v.toFixed(2));
 
     el('btnRestart').addEventListener('click', callbacks.onRestart);
     el('btnPlayAgain').addEventListener('click', callbacks.onRestart);
@@ -121,10 +124,11 @@ export class Hud {
     const race = this._race;
 
     if (race.phase === 'stalled') {
+      // The sentence stays exactly where it was, greyed out. Nothing is rebuilt:
+      // the stall calls this every frame to run the countdown, and re-rendering
+      // the spans each time would restart the arc animations mid-flicker.
       this._prompt.classList.add('stalled');
-      this._prompt.innerHTML =
-        '<div class="stalledMsg">HULL BREACH: REBOOTING' +
-        `<span class="countdown">${Math.max(0, race.stallTimer).toFixed(1)}s</span></div>`;
+      this._stallTimer.textContent = `${Math.max(0, race.stallTimer).toFixed(1)}s`;
       return;
     }
 
@@ -134,10 +138,12 @@ export class Hud {
     let html = '';
     for (let i = 0; i < sentence.length; i++) {
       const cls = i < race.typedIndex ? 'correct' : i === race.typedIndex ? 'current' : 'pending';
-      const ch = sentence[i] === ' ' ? '&nbsp;' : escapeHtml(sentence[i]);
-      html += `<span class="ch ${cls}">${ch}</span>`;
+      // A real space, not &nbsp;: a non-breaking space gives the browser no
+      // valid break point anywhere in the sentence, so overflow-wrap:break-word
+      // has no choice but to break mid-word once a line fills up.
+      html += `<span class="ch ${cls}">${escapeHtml(sentence[i])}</span>`;
     }
-    this._prompt.innerHTML = html;
+    this._promptText.innerHTML = html;
   }
 
   update(dt: number): void {

@@ -18,10 +18,12 @@ HelioTyper is a typing race game: type a stream of sentences correctly to accele
 - `speed` decays continuously via half-life exponential decay (`halfLife`), clamped to zero below a small epsilon.
 - `progress` is purely the integral of speed over time (`speed * dt` accumulated), divided by `moonDistance` (named for the prototype's single-landmark placeholder; conceptually this is total distance to the heliopause). Typing never moves the ship directly, only speed does.
 - `moonDistance` is the single race-length knob, since typing is endless there is no paragraph length to calibrate against.
+- Decay bottoms out at a cruise floor (`minSpeed`), not at zero: speed is only truly 0 when the ship is cold on the pad before the first keystroke, locked out by a stall, or finished. `prototype.html` still decays to a dead stop; the floor was added in the ExcaliburJS port because over a full solar-system run a motionless scene reads as the game having frozen rather than as lost speed.
 
 **Mistakes and hull**
-- A wrong keydown fires once: `speed` resets to 0, `hull -= 1`, the prompt flashes red, and the ship shakes. The character index does not advance.
-- Hull reaching zero does not destroy the ship. It stalls instead: input locks out, physics freeze, sparks burst, and the prompt becomes a red glitching "HULL BREACH - REBOOTING" panel with a live countdown (`STALL_DURATION`). After the countdown, hull refills, speed resets to 0, and typing resumes on the same character.
+- A wrong keydown fires once: `speed` drops to the cruise floor (0 in the prototype), `hull -= 1`, the prompt flashes red, and the ship shakes. The character index does not advance.
+- Hull reaching zero does not destroy the ship. It stalls instead: input locks out, physics freeze, sparks burst, and the prompt goes dead with a live countdown (`STALL_DURATION`). After the countdown, hull refills, speed resets to the cruise floor, and typing resumes on the same character.
+- The prototype replaced the prompt with a "HULL BREACH - REBOOTING" panel; the ExcaliburJS port instead keeps the whole sentence on screen and greys it out, with arcs flickering around the panel border and the countdown on a chip straddling its top edge. Hiding the text is worst exactly when the player most wants to see where they will resume.
 - Losing outright ("rocket destroyed") is currently unreachable; the only way a run ends is by reaching the finish.
 
 **Blastoff**
@@ -65,7 +67,7 @@ HelioTyper is a typing race game: type a stream of sentences correctly to accele
 
 **Roadmap**
 1. Real sprite art now that mechanics are locked, already generated for rockets, planets, the heliopause finish, effects, and environment; see [assets/](assets/).
-2. Port to ExcaliburJS (camera lock-to-actor, particle system, the full outbound run to the heliopause); see [_prototypes/typosphere/](_prototypes/typosphere/) for the in-progress port.
+2. Port to ExcaliburJS (camera lock-to-actor, particle system, the full outbound run to the heliopause); see [_prototypes/heliotyper-game-prototype/](_prototypes/heliotyper-game-prototype/) for the in-progress port.
 3. NestJS gateway with a server-authoritative loop, starting single-player against the server.
 4. Multiplayer: lobby, room codes, countdown, minimap, multiple rockets.
 5. Persistence (Postgres/Prisma) for race history and leaderboards.

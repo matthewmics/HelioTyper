@@ -1,8 +1,17 @@
 import { Actor, Color, type Scene, vec } from 'excalibur';
 import type { Atlas } from '../atlas';
-import { CLOUD_COUNT, CLOUD_SPREAD, Z } from '../config';
+import {
+  CLOUD_BILLOW,
+  CLOUD_COUNT,
+  CLOUD_ROLL,
+  CLOUD_SPREAD,
+  CLOUD_WIND,
+  Z,
+} from '../config';
 import { rand, randInt, smoothstep } from '../util';
 import type { View } from '../view';
+
+const DEG = Math.PI / 180;
 
 /** Near silhouettes: less air between you and them, so they read almost black. */
 const FG_TINT = Color.fromRGB(26, 28, 48);
@@ -19,6 +28,15 @@ interface Cloud {
   /** Parallax factor: nearer clouds sweep by faster. */
   depth: number;
   fg: boolean;
+  /** Half the cell width in world px, for wrapping the wind drift off-screen. */
+  half: number;
+  /** Lateral wind speed in px/sec, before parallax. */
+  wind: number;
+  /** Own offset and rates for the billow and roll cycles. */
+  phase: number;
+  billowX: number;
+  billowY: number;
+  rollRate: number;
 }
 
 /**
@@ -30,6 +48,11 @@ interface Cloud {
  *
  * The cloud textures are white with form shading baked in, so both moods come out
  * of one texture by tinting, exactly as assets/environment/README.md intends.
+ *
+ * Each texture is a still, so the weather itself is animated here: a lateral wind
+ * that wraps around the screen, an x/y billow on separate cycles so the silhouette
+ * churns rather than pumps, and a lazy roll. All of it is per-cloud and scaled by
+ * parallax depth, so a near cloud visibly races a far one.
  */
 export class CloudLayer {
   private readonly _clouds: Cloud[] = [];
@@ -70,6 +93,12 @@ export class CloudLayer {
         x: Math.random(),
         depth: rand(0.5, 1.2),
         fg,
+        half: (env.frame(`cloud_${shape}`).w * scale) / 2,
+        wind: rand(CLOUD_WIND[0], CLOUD_WIND[1]),
+        phase: Math.random() * Math.PI * 2,
+        billowX: rand(0.1, 0.22),
+        billowY: rand(0.13, 0.27),
+        rollRate: rand(0.07, 0.16),
       });
     }
   }
@@ -92,9 +121,27 @@ export class CloudLayer {
       c.rim.graphics.visible = onScreen && rimStrength > 0.01;
       if (!onScreen) continue;
 
-      const x = c.x * view.w;
+      // Wind, wrapped through a band one cloud-width wider than the screen at
+      // each end, so a cloud slides off one side and returns from the other
+      // rather than popping out of existence at the edge.
+      const t = view.time;
+      const band = view.w + c.half * 2;
+      let x = (c.x * view.w + t * c.wind * c.depth + c.half) % band;
+      if (x < 0) x += band;
+      x -= c.half;
+
+      const roll = Math.sin(t * c.rollRate + c.phase) * CLOUD_ROLL * DEG;
+      const sx = 1 + Math.sin(t * c.billowX + c.phase) * CLOUD_BILLOW;
+      const sy = 1 - Math.sin(t * c.billowY + c.phase * 1.7) * CLOUD_BILLOW * 0.7;
+
       c.body.pos.setTo(x, y);
+      c.body.scale.setTo(sx, sy);
+      c.body.rotation = roll;
+      // The rim shares the body's cell, so it has to take the exact same
+      // transform or the sunset edge slides off the shape it belongs to.
       c.rim.pos.setTo(x, y);
+      c.rim.scale.setTo(sx, sy);
+      c.rim.rotation = roll;
 
       const alpha = fade * (c.fg ? 0.95 : 1);
       c.body.graphics.opacity = (c.fg ? 0.94 : 0.82) * alpha;

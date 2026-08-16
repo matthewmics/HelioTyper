@@ -122,11 +122,10 @@ export class Race {
       return;
     }
 
-    // Wrong key: dead stop, one hull segment, and the character index does not
-    // advance. Speed is the only thing that moves the ship, so this costs real
-    // distance rather than just a cosmetic penalty.
+    // Wrong key: every bit of built-up speed, one hull segment, and the character
+    // index does not advance. Speed is the only thing that moves the ship, so this
+    // costs real distance rather than just a cosmetic penalty.
     this.mistakes++;
-    this.speed = 0;
     this.hull -= 1;
     this.hooks.onMistake?.();
 
@@ -136,6 +135,9 @@ export class Race {
       this.stallTimer = STALL_DURATION;
       this.hooks.onBreach?.();
     }
+    // Back to the cruise floor, which the breach above has already dropped to a
+    // true zero if this was the segment that took the hull with it.
+    this.speed = this.speedFloor;
     this.hooks.onPrompt?.();
   }
 
@@ -158,17 +160,20 @@ export class Race {
         // what protoype.md found beats an outright loss.
         this.stallTimer = 0;
         this.hull = this.cfg.maxHull;
-        this.speed = 0;
         this.phase = 'racing';
+        // Order matters: the floor is zero while the phase is still 'stalled'.
+        this.speed = this.speedFloor;
         this.hooks.onRecover?.();
         this.hooks.onPrompt?.();
       }
       return;
     }
 
-    // Continuous half-life decay, clamped to a real zero.
+    // Continuous half-life decay down to the cruise floor. The floor is zero
+    // before launch, so a cold ship still sits perfectly still on the pad, and
+    // EPS is what makes that a real zero rather than an ever-smaller number.
     const k = Math.LN2 / this.cfg.halfLife;
-    this.speed *= Math.exp(-k * dt);
+    this.speed = Math.max(this.speedFloor, this.speed * Math.exp(-k * dt));
     if (this.speed < EPS) this.speed = 0;
 
     // Progress is purely the integral of speed over time. Typing never moves the
@@ -189,6 +194,18 @@ export class Race {
   /** Progress renormalised over the atmosphere window: 0 on the pad, 1 in space. */
   get atmo(): number {
     return Math.max(0, Math.min(1, this.progress / ATMO_END));
+  }
+
+  /**
+   * The speed decay bottoms out at right now.
+   *
+   * Zero only in the three states where the ship is meant to be dead in the water:
+   * cold on the pad, locked out by a hull breach, and after the finish. Anywhere
+   * else it is `minSpeed`, so the run never comes to a complete halt mid-race.
+   */
+  get speedFloor(): number {
+    if (!this.launched || this.phase !== 'racing') return 0;
+    return Math.min(this.cfg.minSpeed, this.cfg.maxSpeed);
   }
 
   get speedRatio(): number {

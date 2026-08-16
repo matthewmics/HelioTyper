@@ -40,6 +40,8 @@ export interface AtlasJson {
   animations?: Record<string, AtlasAnimation>;
   /** Frames authored white, meant to be multiplied by a runtime tint. */
   tintable?: string[];
+  /** Disc radius per frame, where the cell is bigger than the body (rings). Planets only. */
+  radii?: Record<string, number>;
   /** Frames whose pattern repeats seamlessly along x. */
   tileableX?: string[];
 }

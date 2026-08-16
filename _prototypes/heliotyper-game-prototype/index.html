@@ -54,56 +54,236 @@
         border-color: #ff4d5e;
         background: rgba(60, 10, 16, 0.75);
       }
+      /* ---- hull breach: the prompt stays readable, it just goes dead ----
+         The sentence is never covered up. You can still read ahead and see
+         exactly where you will resume; the panel just reads as powered down
+         and being electrocuted, which is a much better signal than a modal
+         that hides the one thing you are looking at. */
       #promptBox.stalled {
         border-color: #ff4d5e;
         background: rgba(40, 6, 10, 0.8);
-        animation: stalledGlitch 0.12s steps(2) infinite;
+        animation: stalledShake 0.16s steps(2) infinite;
       }
       /* Every step keeps the -50% that centres the box: a bare translateX here
          would replace it and throw the panel off to one side mid-stall. */
-      @keyframes stalledGlitch {
+      @keyframes stalledShake {
         0% {
           transform: translateX(-50%);
-          opacity: 1;
         }
         25% {
-          transform: translateX(calc(-50% - 3px));
-          opacity: 0.75;
+          transform: translate(calc(-50% - 2px), 1px);
         }
         50% {
-          transform: translateX(calc(-50% + 2px));
-          opacity: 0.95;
+          transform: translate(calc(-50% + 2px), -1px);
         }
         75% {
-          transform: translateX(calc(-50% - 2px));
-          opacity: 0.6;
+          transform: translate(calc(-50% - 1px), 1px);
         }
         100% {
           transform: translateX(-50%);
-          opacity: 0.9;
         }
       }
-      .stalledMsg {
-        text-align: center;
-        color: #ff5d6c;
+      /* Greyed out and dimmed: grayscale drains the amber cursor and the blue
+         typed text to the same dead grey, so nothing on the panel looks like it
+         is still accepting input. */
+      #promptBox.stalled #promptText {
+        filter: grayscale(1) brightness(0.66);
+        opacity: 0.5;
+      }
+      #promptBox.stalled .ch.current {
+        animation: none;
+      }
+
+      /* Arcs flickering across the dead panel. */
+      #stallFx {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        display: none;
+      }
+      #promptBox.stalled #stallFx {
+        display: block;
+      }
+      #stallFx svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #stallFx path {
+        fill: none;
+        stroke: #dff0ff;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        /* The box is not square, so the SVG stretches; this keeps the bolts an
+           even thickness instead of smearing them out horizontally. */
+        vector-effect: non-scaling-stroke;
+        filter: drop-shadow(0 0 5px #7fd0ff);
+        opacity: 0;
+        animation: arc 1.05s steps(1, end) infinite;
+      }
+      /* Deliberately mismatched durations, so the six never resynchronise into a
+         visible marching pattern around the frame. */
+      #stallFx path:nth-child(2) {
+        animation-duration: 0.83s;
+        animation-delay: 0.19s;
+      }
+      #stallFx path:nth-child(3) {
+        animation-duration: 1.27s;
+        animation-delay: 0.41s;
+      }
+      #stallFx path:nth-child(4) {
+        animation-duration: 0.71s;
+        animation-delay: 0.08s;
+      }
+      #stallFx path:nth-child(5) {
+        animation-duration: 0.94s;
+        animation-delay: 0.53s;
+      }
+      #stallFx path:nth-child(6) {
+        animation-duration: 1.13s;
+        animation-delay: 0.29s;
+      }
+      /* Short bursts, several per cycle: a bolt that is lit half the time reads
+         as a drawn line rather than as a discharge, but too few and the panel
+         just looks dark. Four paths on different durations means something is
+         arcing most of the time without any one bolt lingering. */
+      @keyframes arc {
+        0%,
+        3% {
+          opacity: 0;
+        }
+        5% {
+          opacity: 0.95;
+        }
+        9% {
+          opacity: 0;
+        }
+        12% {
+          opacity: 0.65;
+        }
+        15%,
+        29% {
+          opacity: 0;
+        }
+        32% {
+          opacity: 0.9;
+        }
+        36%,
+        60% {
+          opacity: 0;
+        }
+        63% {
+          opacity: 0.85;
+        }
+        67% {
+          opacity: 0;
+        }
+        70% {
+          opacity: 0.5;
+        }
+        73%,
+        88% {
+          opacity: 0;
+        }
+        91% {
+          opacity: 0.8;
+        }
+        95%,
+        100% {
+          opacity: 0;
+        }
+      }
+      #promptBox.stalled::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 12px;
+        pointer-events: none;
+        background: radial-gradient(ellipse at 50% 50%, rgba(255, 70, 90, 0.13), transparent 72%);
+        animation: breachFlash 0.44s steps(2) infinite;
+      }
+      @keyframes breachFlash {
+        0%,
+        100% {
+          opacity: 0.35;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      /* Status chip straddling the top border, so the countdown never sits on
+         top of a word. */
+      #stallBadge {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 14px;
+        border-radius: 20px;
+        background: #2a0810;
+        border: 1px solid #ff4d5e;
+        color: #ff8a95;
+        font-size: 11px;
         font-weight: 700;
+        letter-spacing: 2px;
+        white-space: nowrap;
+        box-shadow: 0 0 14px rgba(255, 77, 94, 0.45);
+      }
+      #promptBox.stalled #stallBadge {
+        display: flex;
+      }
+      #stallBadge b {
+        color: #fff;
         letter-spacing: 1px;
       }
-      .stalledMsg .countdown {
-        display: block;
-        margin-top: 6px;
-        font-size: 30px;
-        color: #fff;
-        letter-spacing: 2px;
+      #stallBadge .spark {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #ff4d5e;
+        box-shadow: 0 0 8px #ff4d5e;
+        animation: breachFlash 0.5s steps(2) infinite;
       }
 
       .ch.correct {
-        color: #6dffb0;
+        /* Blue rather than green: on red-green color blindness (the common
+           kind) a mint green desaturates toward the same grey as .ch.pending,
+           so the two stop reading as different. Blue stays distinct from grey
+           under every common form of color blindness. */
+        color: #7ac0ff;
       }
       .ch.current {
-        color: #fff;
-        text-decoration: underline;
-        text-decoration-color: #7a8bff;
+        /* The "next key" marker can't lean on hue alone, since that's exactly
+           what's hard to read for a color-blind player. A solid amber block is
+           a brightness/shape cue instead of a color one, and the pulse adds a
+           motion cue on top, so it still reads with no color vision at all.
+
+           Padding is vertical-only and font-weight is left alone: either one
+           changes this character's horizontal advance width, and since the
+           "current" class hops to a new character every keystroke, that made
+           every character after it shift sideways in sync with your typing.
+           Vertical padding does not affect an inline element's layout width,
+           so the highlight cannot bleed sideways into the next letter or
+           shove the rest of the line around. */
+        color: #1a1200;
+        background: #ffcf6b;
+        border-radius: 3px;
+        padding: 3px 0;
+        animation: curPulse 1.1s ease-in-out infinite;
+      }
+      @keyframes curPulse {
+        0%,
+        100% {
+          box-shadow: 0 0 5px rgba(255, 207, 107, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 13px rgba(255, 207, 107, 0.85);
+        }
       }
       .ch.pending {
         color: #6a7190;
@@ -294,8 +474,26 @@
         <div id="railMarker"></div>
       </div>
 
-      <div id="promptBox"></div>
-      <div id="hint">Build speed and stay consistent. Stop typing and you coast to a halt.</div>
+      <div id="promptBox">
+        <div id="promptText"></div>
+        <!-- Static, so the arc animations keep running instead of restarting
+             every time the countdown ticks. -->
+        <!-- The arcs crawl the border rather than crossing the panel. Bolts
+             drawn through the middle read as a lattice over the words, and the
+             whole point of this state is that the sentence stays readable. -->
+        <div id="stallFx" aria-hidden="true">
+          <svg viewBox="0 0 700 120" preserveAspectRatio="none">
+            <path d="M40 4 L92 -4 L140 10 L196 -2 L248 6" />
+            <path d="M452 6 L508 -4 L556 10 L612 -2 L664 5" />
+            <path d="M36 116 L90 124 L138 108 L194 120 L246 113" />
+            <path d="M456 113 L510 122 L558 107 L614 119 L666 114" />
+            <path d="M8 22 L-4 48 L14 72 L2 100" />
+            <path d="M692 20 L704 46 L686 72 L698 98" />
+          </svg>
+        </div>
+        <div id="stallBadge"><i class="spark"></i>HULL BREACH <b id="stallTimer">5.0s</b></div>
+      </div>
+      <div id="hint">Build speed and stay consistent. Stop typing and you fall back to a crawl.</div>
 
       <div id="devPanel">
         <h3>DEV TUNING</h3>
@@ -322,6 +520,10 @@
         <label
           >Max speed <span class="val" id="vMaxSpeed">1.20</span>
           <input type="range" id="sMaxSpeed" min="0.2" max="3.0" step="0.05" value="1.2" />
+        </label>
+        <label
+          >Min (cruise) speed <span class="val" id="vMinSpeed">0.15</span>
+          <input type="range" id="sMinSpeed" min="0" max="0.6" step="0.01" value="0.15" />
         </label>
         <button id="btnRestart">Restart</button>
       </div>

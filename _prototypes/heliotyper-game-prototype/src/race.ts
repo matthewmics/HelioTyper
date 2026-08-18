@@ -140,7 +140,10 @@ export class Race {
   update(dt: number): void {
     if (this.phase === 'finished') return;
 
-    if (this._started) this.elapsed += dt;
+    // Stalled time must not count against WPM: input is locked out, so no
+    // keystrokes could have landed anyway. Only 'racing' accrues here since
+    // 'finished' already returned above.
+    if (this._started && this.phase === 'racing') this.elapsed += dt;
     if (this.launchT > 0) this.launchT = Math.max(0, this.launchT - dt);
 
     if (this.phase === 'stalled') {

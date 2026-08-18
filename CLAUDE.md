@@ -23,6 +23,7 @@ HelioTyper is a typing race game: type a stream of sentences correctly to accele
 **Mistakes and hull**
 - A wrong keydown fires once: `speed` drops to the cruise floor (0 in the prototype), `hull -= 1`, the prompt flashes red, and the ship shakes. The character index does not advance.
 - Hull reaching zero does not destroy the ship. It stalls instead: input locks out, physics freeze, sparks burst, and the prompt goes dead with a live countdown (`STALL_DURATION`). After the countdown, hull refills, speed resets to the cruise floor, and typing resumes on the same character.
+- WPM is elapsed correct characters over elapsed run time, and stall time is excluded from that clock: since input is locked out during a stall, no keystrokes could have landed anyway, so counting that time would only drag the average down for something the player couldn't affect.
 - The prototype replaced the prompt with a "HULL BREACH - REBOOTING" panel; the ExcaliburJS port instead keeps the whole sentence on screen and greys it out, with arcs flickering around the panel border and the countdown on a chip straddling its top edge. Hiding the text is worst exactly when the player most wants to see where they will resume.
 - Losing outright ("rocket destroyed") is currently unreachable; the only way a run ends is by reaching the finish.
 
